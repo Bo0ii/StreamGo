@@ -1,0 +1,96 @@
+<!-- Streaming Performance Section (Collapsible) -->
+<div class="enhanced-collapsible" id="streamingPerformanceSection">
+    <div class="enhanced-collapsible-header" data-section="streaming-performance">
+        <span class="enhanced-collapsible-title">Streaming Performance</span>
+        <svg class="enhanced-collapsible-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+    </div>
+    <div class="enhanced-collapsible-content" data-section="streaming-performance">
+        <p style="color: gray; font-size: 12px; margin-bottom: 1rem;">
+            Optimize BitTorrent settings for better streaming performance. Changes require a service restart to take effect.
+        </p>
+
+        <!-- Performance Profile Selector -->
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Performance Profile</div>
+            </div>
+            <div class="content-P2T0i">
+                <select id="streamingProfileSelect" style="
+                    background: rgba(255,255,255,0.1);
+                    border: 1px solid rgba(255,255,255,0.2);
+                    border-radius: 4px;
+                    padding: 8px 12px;
+                    color: white;
+                    font-size: 14px;
+                    min-width: 200px;
+                    cursor: pointer;
+                    outline: none;
+                ">
+                    <option value="conservative" {{ conservativeSelected }}>Conservative</option>
+                    <option value="balanced" {{ balancedSelected }}>Balanced (Recommended)</option>
+                    <option value="aggressive" {{ aggressiveSelected }}>Aggressive (HD/4K)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Profile Description -->
+        <div id="streamingProfileDescription" style="
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
+        ">
+            <p style="color: #aaa; font-size: 13px; margin: 0;" id="profileDescriptionText">{{ profileDescription }}</p>
+        </div>
+
+        <!-- Profile Details -->
+        <div style="margin: 16px 0;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <span style="color: gray;">Cache Size</span>
+                    <span style="color: white;" id="profileCacheSize">{{ cacheSize }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <span style="color: gray;">Max Connections</span>
+                    <span style="color: white;" id="profileMaxConnections">{{ maxConnections }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <span style="color: gray;">Speed Limit</span>
+                    <span style="color: white;" id="profileSpeedLimit">{{ speedLimit }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <span style="color: gray;">Min Peers</span>
+                    <span style="color: white;" id="profileMinPeers">{{ minPeers }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Apply Button -->
+        <div style="display: flex; gap: 12px; margin-top: 16px;">
+            <button id="applyStreamingProfileBtn" style="
+                background: var(--accent-color, #7b5bf5);
+                border: none;
+                border-radius: 4px;
+                padding: 10px 20px;
+                color: white;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: opacity 0.2s;
+            ">Apply & Restart Service</button>
+            <span id="streamingProfileStatus" style="
+                color: gray;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+            "></span>
+        </div>
+
+        <!-- Warning Note -->
+        <p style="color: #f0ad4e; font-size: 11px; margin-top: 12px;">
+            Note: Restarting the service will interrupt any active playback. Higher settings use more system resources.
+        </p>
+    </div>
+</div>

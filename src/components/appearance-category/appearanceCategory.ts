@@ -53,7 +53,9 @@ export function setupAppearanceControls(): void {
 	// Dark mode toggle
 	Helpers.waitForElm('#darkModeToggle').then(() => {
 		const toggle = document.getElementById('darkModeToggle');
-		toggle?.addEventListener('click', () => {
+		if (!toggle || toggle.hasAttribute('data-handler-attached')) return;
+		toggle.setAttribute('data-handler-attached', 'true');
+		toggle.addEventListener('click', () => {
 			toggle.classList.toggle(CLASSES.CHECKED);
 			const isChecked = toggle.classList.contains(CLASSES.CHECKED);
 			logger.info(`Dark mode toggled ${isChecked ? "ON" : "OFF"}`);
@@ -65,7 +67,9 @@ export function setupAppearanceControls(): void {
 	// Preset color options
 	Helpers.waitForElm('#accentColorPicker').then(() => {
 		const colorPicker = document.getElementById('accentColorPicker');
-		const colorOptions = colorPicker?.querySelectorAll('.color-option');
+		if (!colorPicker || colorPicker.hasAttribute('data-handler-attached')) return;
+		colorPicker.setAttribute('data-handler-attached', 'true');
+		const colorOptions = colorPicker.querySelectorAll('.color-option');
 
 		// Highlight current accent color
 		const currentColor = localStorage.getItem(STORAGE_KEYS.ACCENT_COLOR) || DEFAULT_ACCENT_COLOR;
@@ -92,9 +96,12 @@ export function setupAppearanceControls(): void {
 	// Custom color picker
 	Helpers.waitForElm('#customAccentColor').then(() => {
 		const colorInput = document.getElementById('customAccentColor') as HTMLInputElement;
+		if (!colorInput || colorInput.hasAttribute('data-handler-attached')) return;
+		colorInput.setAttribute('data-handler-attached', 'true');
 		const textInput = document.getElementById('customAccentColorText') as HTMLInputElement;
+		if (textInput) textInput.setAttribute('data-handler-attached', 'true');
 
-		colorInput?.addEventListener('input', () => {
+		colorInput.addEventListener('input', () => {
 			const color = colorInput.value;
 			setAccentColor(color);
 			if (textInput) textInput.value = color;
@@ -114,7 +121,9 @@ export function setupAppearanceControls(): void {
 	// Reset button
 	Helpers.waitForElm('#resetAccentColor').then(() => {
 		const resetBtn = document.getElementById('resetAccentColor');
-		resetBtn?.addEventListener('click', () => {
+		if (!resetBtn || resetBtn.hasAttribute('data-handler-attached')) return;
+		resetBtn.setAttribute('data-handler-attached', 'true');
+		resetBtn.addEventListener('click', () => {
 			setAccentColor(DEFAULT_ACCENT_COLOR);
 			const colorInput = document.getElementById('customAccentColor') as HTMLInputElement;
 			const textInput = document.getElementById('customAccentColorText') as HTMLInputElement;

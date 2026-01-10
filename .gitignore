@@ -7,3 +7,11 @@ package-lock.json
 backup
 CLAUDE.md
 todo.md
+
+# Stremio service source files (extracted binaries are in platform-specific folders)
+stremio-service/Stremio
+stremio-service/*.deb
+stremio-service/*.rpm
+stremio-service/*.dmg
+stremio-service/*.flatpak
+stremio-service/deb-extract

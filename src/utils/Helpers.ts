@@ -186,39 +186,75 @@ class Helpers {
     /**
      * Execute JavaScript in the context of Stremio's core services
      * @param js - JavaScript code to execute
+     * @param timeout - Timeout in milliseconds (default: 5000)
      * @returns Promise with the result of the execution
      */
-    public _eval(js: string): Promise<unknown> {
+    public _eval(js: string, timeout: number = 5000): Promise<unknown> {
         return new Promise((resolve, reject) => {
-            try {
-                const eventName = 'streamgo';
-                const script = document.createElement('script');
-                
-                const handler = (data: Event) => {
-                    script.remove();
-                    resolve((data as CustomEvent).detail);
-                };
+            const eventName = 'streamgo';
+            let timeoutId: ReturnType<typeof setTimeout> | null = null;
+            let script: HTMLScriptElement | null = null;
 
+            const cleanup = () => {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+                if (script) {
+                    script.remove();
+                    script = null;
+                }
+                window.removeEventListener(eventName, handler);
+            };
+
+            const handler = (data: Event) => {
+                cleanup();
+                resolve((data as CustomEvent).detail);
+            };
+
+            // Set timeout to prevent hanging forever
+            timeoutId = setTimeout(() => {
+                cleanup();
+                reject(new Error(`_eval timeout after ${timeout}ms`));
+            }, timeout);
+
+            try {
+                script = document.createElement('script');
                 window.addEventListener(eventName, handler, { once: true });
-                
+
                 script.id = eventName;
                 script.appendChild(
                     document.createTextNode(`
-                        var core = window.services.core;
-                        var result = ${js};
-                
-                        if (result instanceof Promise) {
-                            result.then((awaitedResult) => {
-                                window.dispatchEvent(new CustomEvent("${eventName}", { detail: awaitedResult }));
-                            });
-                        } else {
-                            window.dispatchEvent(new CustomEvent("${eventName}", { detail: result }));
-                        }
+                        (function() {
+                            try {
+                                if (!window.services || !window.services.core) {
+                                    window.dispatchEvent(new CustomEvent("${eventName}", { detail: null }));
+                                    return;
+                                }
+                                var core = window.services.core;
+                                var result = ${js};
+
+                                if (result instanceof Promise) {
+                                    result.then(function(awaitedResult) {
+                                        window.dispatchEvent(new CustomEvent("${eventName}", { detail: awaitedResult }));
+                                    }).catch(function(err) {
+                                        console.error('[_eval] Promise rejected:', err);
+                                        window.dispatchEvent(new CustomEvent("${eventName}", { detail: null }));
+                                    });
+                                } else {
+                                    window.dispatchEvent(new CustomEvent("${eventName}", { detail: result }));
+                                }
+                            } catch (e) {
+                                console.error('[_eval] Script error:', e);
+                                window.dispatchEvent(new CustomEvent("${eventName}", { detail: null }));
+                            }
+                        })();
                     `),
                 );
-                    
+
                 document.head.appendChild(script);
             } catch (err) {
+                cleanup();
                 reject(err);
             }
         });

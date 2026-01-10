@@ -73,7 +73,9 @@ export function setupTweaksControls(): void {
 	// Full height background toggle
 	Helpers.waitForElm('#fullHeightBackgroundToggle').then(() => {
 		const toggle = document.getElementById('fullHeightBackgroundToggle');
-		toggle?.addEventListener('click', () => {
+		if (!toggle || toggle.hasAttribute('data-handler-attached')) return;
+		toggle.setAttribute('data-handler-attached', 'true');
+		toggle.addEventListener('click', () => {
 			toggle.classList.toggle(CLASSES.CHECKED);
 			const isChecked = toggle.classList.contains(CLASSES.CHECKED);
 			logger.info(`Full height background toggled ${isChecked ? "ON" : "OFF"}`);
@@ -85,7 +87,9 @@ export function setupTweaksControls(): void {
 	// Hide poster hover toggle
 	Helpers.waitForElm('#hidePosterHoverToggle').then(() => {
 		const toggle = document.getElementById('hidePosterHoverToggle');
-		toggle?.addEventListener('click', () => {
+		if (!toggle || toggle.hasAttribute('data-handler-attached')) return;
+		toggle.setAttribute('data-handler-attached', 'true');
+		toggle.addEventListener('click', () => {
 			toggle.classList.toggle(CLASSES.CHECKED);
 			const isChecked = toggle.classList.contains(CLASSES.CHECKED);
 			logger.info(`Hide poster hover toggled ${isChecked ? "ON" : "OFF"}`);
@@ -97,7 +101,9 @@ export function setupTweaksControls(): void {
 	// Hide context dots toggle
 	Helpers.waitForElm('#hideContextDotsToggle').then(() => {
 		const toggle = document.getElementById('hideContextDotsToggle');
-		toggle?.addEventListener('click', () => {
+		if (!toggle || toggle.hasAttribute('data-handler-attached')) return;
+		toggle.setAttribute('data-handler-attached', 'true');
+		toggle.addEventListener('click', () => {
 			toggle.classList.toggle(CLASSES.CHECKED);
 			const isChecked = toggle.classList.contains(CLASSES.CHECKED);
 			logger.info(`Hide context dots toggled ${isChecked ? "ON" : "OFF"}`);
@@ -109,7 +115,9 @@ export function setupTweaksControls(): void {
 	// Rounded posters toggle
 	Helpers.waitForElm('#roundedPostersToggle').then(() => {
 		const toggle = document.getElementById('roundedPostersToggle');
-		toggle?.addEventListener('click', () => {
+		if (!toggle || toggle.hasAttribute('data-handler-attached')) return;
+		toggle.setAttribute('data-handler-attached', 'true');
+		toggle.addEventListener('click', () => {
 			toggle.classList.toggle(CLASSES.CHECKED);
 			const isChecked = toggle.classList.contains(CLASSES.CHECKED);
 			logger.info(`Rounded posters toggled ${isChecked ? "ON" : "OFF"}`);
@@ -123,7 +131,9 @@ export function setupTweaksControls(): void {
 	// Ambilight toggle
 	Helpers.waitForElm('#ambilightToggle').then(() => {
 		const toggle = document.getElementById('ambilightToggle');
-		toggle?.addEventListener('click', () => {
+		if (!toggle || toggle.hasAttribute('data-handler-attached')) return;
+		toggle.setAttribute('data-handler-attached', 'true');
+		toggle.addEventListener('click', () => {
 			toggle.classList.toggle(CLASSES.CHECKED);
 			const isChecked = toggle.classList.contains(CLASSES.CHECKED);
 			localStorage.setItem(STORAGE_KEYS.AMBILIGHT_ENABLED, isChecked ? 'true' : 'false');
@@ -134,7 +144,9 @@ export function setupTweaksControls(): void {
 	// Skip intro duration
 	Helpers.waitForElm('#skipIntroDuration').then(() => {
 		const input = document.getElementById('skipIntroDuration') as HTMLInputElement;
-		input?.addEventListener('change', () => {
+		if (!input || input.hasAttribute('data-handler-attached')) return;
+		input.setAttribute('data-handler-attached', 'true');
+		input.addEventListener('change', () => {
 			const value = Math.min(180, Math.max(30, parseInt(input.value) || PLAYER_DEFAULTS.SKIP_INTRO_SECONDS));
 			input.value = value.toString();
 			localStorage.setItem(STORAGE_KEYS.SKIP_INTRO_SECONDS, value.toString());
@@ -145,9 +157,11 @@ export function setupTweaksControls(): void {
 	// Subtitle font size
 	Helpers.waitForElm('#settingsSubtitleSize').then(() => {
 		const slider = document.getElementById('settingsSubtitleSize') as HTMLInputElement;
+		if (!slider || slider.hasAttribute('data-handler-attached')) return;
+		slider.setAttribute('data-handler-attached', 'true');
 		const valueDisplay = document.getElementById('settingsSubtitleSizeValue');
 
-		slider?.addEventListener('input', () => {
+		slider.addEventListener('input', () => {
 			const value = slider.value;
 			if (valueDisplay) valueDisplay.textContent = `${value}px`;
 			localStorage.setItem(STORAGE_KEYS.SUBTITLE_FONT_SIZE, value);
@@ -158,9 +172,11 @@ export function setupTweaksControls(): void {
 	// Subtitle color
 	Helpers.waitForElm('#settingsSubtitleColor').then(() => {
 		const colorPicker = document.getElementById('settingsSubtitleColor') as HTMLInputElement;
+		if (!colorPicker || colorPicker.hasAttribute('data-handler-attached')) return;
+		colorPicker.setAttribute('data-handler-attached', 'true');
 		const valueDisplay = document.getElementById('settingsSubtitleColorValue');
 
-		colorPicker?.addEventListener('input', () => {
+		colorPicker.addEventListener('input', () => {
 			const value = colorPicker.value;
 			if (valueDisplay) valueDisplay.textContent = value;
 			localStorage.setItem(STORAGE_KEYS.SUBTITLE_COLOR, value);
@@ -171,9 +187,11 @@ export function setupTweaksControls(): void {
 	// Subtitle background opacity
 	Helpers.waitForElm('#settingsSubtitleBgOpacity').then(() => {
 		const slider = document.getElementById('settingsSubtitleBgOpacity') as HTMLInputElement;
+		if (!slider || slider.hasAttribute('data-handler-attached')) return;
+		slider.setAttribute('data-handler-attached', 'true');
 		const valueDisplay = document.getElementById('settingsSubtitleBgOpacityValue');
 
-		slider?.addEventListener('input', () => {
+		slider.addEventListener('input', () => {
 			const value = parseInt(slider.value);
 			if (valueDisplay) valueDisplay.textContent = `${value}%`;
 			const bgColor = `rgba(0,0,0,${value / 100})`;

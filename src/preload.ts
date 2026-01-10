@@ -12,6 +12,7 @@ import { getModItemTemplate } from "./components/mods-item/modsItem";
 import { getAboutCategoryTemplate } from "./components/about-category/aboutCategory";
 import { applyUserAppearance, writeAppearance, setupAppearanceControls } from "./components/appearance-category/appearanceCategory";
 import { getTweaksIcon, writeTweaks, setupTweaksControls, applyTweaks } from "./components/tweaks-category/tweaksCategory";
+import { writeStreamingPerformance, setupStreamingPerformanceControls } from "./components/streaming-performance/streamingPerformance";
 import { getDefaultThemeTemplate } from "./components/default-theme/defaultTheme";
 import { getBackButton } from "./components/back-btn/backBtn";
 import { getTitleBarTemplate } from "./components/title-bar/titleBar";
@@ -450,6 +451,13 @@ window.addEventListener("load", async () => {
             // Cleanup player overlay and video filter when leaving player page
             cleanupPlayerOverlay();
             cleanupVideoFilter();
+
+            // Reset external player flag if stuck (safety mechanism)
+            if (isHandlingExternalPlayer) {
+                logger.warn("[ExternalPlayer] Resetting stuck flag on navigation away from player");
+                isHandlingExternalPlayer = false;
+                document.body.classList.remove('external-player-active');
+            }
         }
 
         // Reinject icon on navigation (in case theme is active)
@@ -464,47 +472,167 @@ window.addEventListener("load", async () => {
             runEventCleanups('external-player-menu');
             return;
         }
-        if (document.querySelector(`a[href="#settings-enhanced"]`)) return;
 
+        // Check if settings sections already exist (prevents duplicate creation)
+        // NOTE: This only guards section creation - handlers are ALWAYS re-attached
+        // because DOM elements may be recreated when navigating back to settings
+        const sectionsAlreadyExist = !!document.querySelector(`a[href="#settings-enhanced"]`);
+
+        // Always ensure applyTheme is available (safe to call multiple times)
         ModManager.addApplyThemeFunction();
 
-        // Get themes and plugins asynchronously (non-blocking)
-        const modLists = await getModListsAsync();
-        const themesList = modLists.themes;
-        const pluginsList = modLists.plugins;
-        
-        logger.info("Adding 'Plus' sections...");
-        Settings.addSection("enhanced", "Plus");
-        Settings.addCategory("Themes", "enhanced", getThemeIcon());
-        Settings.addCategory("Plugins", "enhanced", getPluginIcon());
-        Settings.addCategory("Tweaks", "enhanced", getTweaksIcon());
-        Settings.addCategory("About", "enhanced", getAboutIcon());
-        
-        Settings.addButton("Open Themes Folder", "openthemesfolderBtn", SELECTORS.THEMES_CATEGORY);
-        Settings.addButton("Open Plugins Folder", "openpluginsfolderBtn", SELECTORS.PLUGINS_CATEGORY);
-        
-        writeAbout();
-        writeAppearance();
-        writeTweaks();
+        // Only create sections if they don't exist yet
+        if (!sectionsAlreadyExist) {
+            // Get themes and plugins asynchronously (non-blocking)
+            const modLists = await getModListsAsync();
+            const themesList = modLists.themes;
+            const pluginsList = modLists.plugins;
 
-        // Inject collapsible section CSS and handlers
+            logger.info("Adding 'Plus' sections...");
+            Settings.addSection("enhanced", "Plus");
+            Settings.addCategory("Themes", "enhanced", getThemeIcon());
+            Settings.addCategory("Plugins", "enhanced", getPluginIcon());
+            Settings.addCategory("Tweaks", "enhanced", getTweaksIcon());
+            Settings.addCategory("About", "enhanced", getAboutIcon());
+
+            Settings.addButton("Open Themes Folder", "openthemesfolderBtn", SELECTORS.THEMES_CATEGORY);
+            Settings.addButton("Open Plugins Folder", "openpluginsfolderBtn", SELECTORS.PLUGINS_CATEGORY);
+
+            writeAbout();
+            writeAppearance();
+            writeTweaks();
+            writeStreamingPerformance();
+
+            // Add themes to settings
+            Helpers.waitForElm(SELECTORS.THEMES_CATEGORY).then(() => {
+                // Default theme
+                const isCurrentThemeDefault = localStorage.getItem(STORAGE_KEYS.CURRENT_THEME) === "Default";
+                const defaultThemeContainer = document.createElement("div");
+                defaultThemeContainer.innerHTML = getDefaultThemeTemplate(isCurrentThemeDefault);
+                document.querySelector(SELECTORS.THEMES_CATEGORY)?.appendChild(defaultThemeContainer);
+
+                // Add installed themes
+                themesList.forEach(theme => {
+                    // Check user path first, then bundled path
+                    const userPath = join(properties.themesPath, theme);
+                    const bundledPath = join(properties.bundledThemesPath, theme);
+                    const themePath = existsSync(userPath) ? userPath : bundledPath;
+
+                    const metaData = Helpers.extractMetadataFromFile(themePath);
+                    if (metaData && metaData.name && metaData.description && metaData.author && metaData.version) {
+                        if (metaData.name.toLowerCase() !== "default") {
+                            Settings.addItem("theme", theme, {
+                                name: metaData.name,
+                                description: metaData.description,
+                                author: metaData.author,
+                                version: metaData.version,
+                                updateUrl: metaData.updateUrl,
+                                source: metaData.source
+                            });
+                        }
+                    }
+                });
+            }).catch(err => logger.error("Failed to setup themes: " + err));
+
+            // Add plugins to settings grouped by author
+            interface PluginData {
+                fileName: string;
+                metaData: {
+                    name: string;
+                    description: string;
+                    author: string;
+                    version: string;
+                    updateUrl?: string;
+                    source?: string;
+                };
+            }
+
+            // Group plugins by author category (Bo0ii vs Revenge977/others)
+            const bo0iiPlugins: PluginData[] = [];
+            const revenge977Plugins: PluginData[] = [];
+
+            pluginsList.forEach(plugin => {
+                // Check user path first, then bundled path
+                const userPath = join(properties.pluginsPath, plugin);
+                const bundledPath = join(properties.bundledPluginsPath, plugin);
+                const pluginPath = existsSync(userPath) ? userPath : bundledPath;
+
+                const metaData = Helpers.extractMetadataFromFile(pluginPath);
+                if (metaData && metaData.name && metaData.description && metaData.author && metaData.version) {
+                    const pluginData: PluginData = {
+                        fileName: plugin,
+                        metaData: {
+                            name: metaData.name,
+                            description: metaData.description,
+                            author: metaData.author,
+                            version: metaData.version,
+                            updateUrl: metaData.updateUrl,
+                            source: metaData.source
+                        }
+                    };
+
+                    // Categorize: Bo0ii's plugins vs everyone else (Revenge977's category)
+                    const authorLower = metaData.author.toLowerCase();
+                    if (authorLower === 'bo0ii') {
+                        bo0iiPlugins.push(pluginData);
+                    } else {
+                        revenge977Plugins.push(pluginData);
+                    }
+                }
+            });
+
+            // Create plugin category sections
+            Helpers.waitForElm(SELECTORS.PLUGINS_CATEGORY).then(() => {
+                const pluginsCategory = document.querySelector(SELECTORS.PLUGINS_CATEGORY);
+                if (!pluginsCategory) return;
+
+                // Create Bo0ii (Exclusive) section
+                if (bo0iiPlugins.length > 0) {
+                    const bo0iiSection = createPluginGroupSection('Bo0ii (Exclusive)', 'Exclusive plugins by Bo0ii', 'bo0ii-plugins');
+                    pluginsCategory.appendChild(bo0iiSection);
+                    bo0iiPlugins.forEach(plugin => {
+                        Settings.addPluginToGroup(plugin.fileName, plugin.metaData, 'bo0ii-plugins');
+                    });
+                }
+
+                // Create Revenge977 section (includes all non-Bo0ii plugins)
+                if (revenge977Plugins.length > 0) {
+                    const revenge977Section = createPluginGroupSection('Revenge 9.7.7 and Community', 'Plugins by Revenge 9.7.7 and Community', 'revenge977-plugins');
+                    pluginsCategory.appendChild(revenge977Section);
+                    revenge977Plugins.forEach(plugin => {
+                        Settings.addPluginToGroup(plugin.fileName, plugin.metaData, 'revenge977-plugins');
+                    });
+                }
+
+                // Setup collapsible handlers for plugin groups (called here for initial setup)
+                setupPluginGroupHandlers();
+            }).catch(err => logger.error("Failed to setup plugins: " + err));
+        }
+
+        // ALWAYS inject styles and setup handlers on every settings visit
+        // These functions are idempotent (check for existing styles/handlers internally)
+        // This ensures handlers are re-attached when DOM is recreated after navigation
         injectCollapsibleStyles();
         injectAboutSectionStyles();
         injectPluginGroupStyles();
+
+        // Setup collapsible handlers - ALWAYS called to re-attach handlers after navigation
+        // The handler functions check for data-*-handler attributes to avoid duplicates
         setupCollapsibleHandlers();
+        setupPluginGroupHandlers();
 
         // Browse plugins/themes from StreamGo registry
         setupBrowseModsButton();
-        
+
         // Check for updates button
         setupCheckUpdatesButton();
-        
+
         // CheckForUpdatesOnStartup toggle
         setupCheckUpdatesOnStartupToggle();
-        
+
         // Discord Rich Presence toggle
         setupDiscordRpcToggle();
-        
+
         // Enable transparency toggle
         setupTransparencyToggle();
 
@@ -514,117 +642,16 @@ window.addEventListener("load", async () => {
         // Tweaks controls (includes player settings)
         setupTweaksControls();
 
+        // Streaming performance controls
+        setupStreamingPerformanceControls();
+
         // Inject external player options into Stremio's native Player settings
         injectExternalPlayerOptions();
 
         // Setup custom player path in About section
         setupCustomPlayerPath();
 
-        // Add themes to settings
-        Helpers.waitForElm(SELECTORS.THEMES_CATEGORY).then(() => {
-            // Default theme
-            const isCurrentThemeDefault = localStorage.getItem(STORAGE_KEYS.CURRENT_THEME) === "Default";
-            const defaultThemeContainer = document.createElement("div");
-            defaultThemeContainer.innerHTML = getDefaultThemeTemplate(isCurrentThemeDefault);
-            document.querySelector(SELECTORS.THEMES_CATEGORY)?.appendChild(defaultThemeContainer);
-            
-            // Add installed themes
-            themesList.forEach(theme => {
-                // Check user path first, then bundled path
-                const userPath = join(properties.themesPath, theme);
-                const bundledPath = join(properties.bundledThemesPath, theme);
-                const themePath = existsSync(userPath) ? userPath : bundledPath;
-
-                const metaData = Helpers.extractMetadataFromFile(themePath);
-                if (metaData && metaData.name && metaData.description && metaData.author && metaData.version) {
-                    if (metaData.name.toLowerCase() !== "default") {
-                        Settings.addItem("theme", theme, {
-                            name: metaData.name,
-                            description: metaData.description,
-                            author: metaData.author,
-                            version: metaData.version,
-                            updateUrl: metaData.updateUrl,
-                            source: metaData.source
-                        });
-                    }
-                }
-            });
-        }).catch(err => logger.error("Failed to setup themes: " + err));
-
-        // Add plugins to settings grouped by author
-        interface PluginData {
-            fileName: string;
-            metaData: {
-                name: string;
-                description: string;
-                author: string;
-                version: string;
-                updateUrl?: string;
-                source?: string;
-            };
-        }
-
-        // Group plugins by author category (Bo0ii vs Revenge977/others)
-        const bo0iiPlugins: PluginData[] = [];
-        const revenge977Plugins: PluginData[] = [];
-
-        pluginsList.forEach(plugin => {
-            // Check user path first, then bundled path
-            const userPath = join(properties.pluginsPath, plugin);
-            const bundledPath = join(properties.bundledPluginsPath, plugin);
-            const pluginPath = existsSync(userPath) ? userPath : bundledPath;
-
-            const metaData = Helpers.extractMetadataFromFile(pluginPath);
-            if (metaData && metaData.name && metaData.description && metaData.author && metaData.version) {
-                const pluginData: PluginData = {
-                    fileName: plugin,
-                    metaData: {
-                        name: metaData.name,
-                        description: metaData.description,
-                        author: metaData.author,
-                        version: metaData.version,
-                        updateUrl: metaData.updateUrl,
-                        source: metaData.source
-                    }
-                };
-
-                // Categorize: Bo0ii's plugins vs everyone else (Revenge977's category)
-                const authorLower = metaData.author.toLowerCase();
-                if (authorLower === 'bo0ii') {
-                    bo0iiPlugins.push(pluginData);
-                } else {
-                    revenge977Plugins.push(pluginData);
-                }
-            }
-        });
-
-        // Create plugin category sections
-        Helpers.waitForElm(SELECTORS.PLUGINS_CATEGORY).then(() => {
-            const pluginsCategory = document.querySelector(SELECTORS.PLUGINS_CATEGORY);
-            if (!pluginsCategory) return;
-
-            // Create Bo0ii (Exclusive) section
-            if (bo0iiPlugins.length > 0) {
-                const bo0iiSection = createPluginGroupSection('Bo0ii (Exclusive)', 'Exclusive plugins by Bo0ii', 'bo0ii-plugins');
-                pluginsCategory.appendChild(bo0iiSection);
-                bo0iiPlugins.forEach(plugin => {
-                    Settings.addPluginToGroup(plugin.fileName, plugin.metaData, 'bo0ii-plugins');
-                });
-            }
-
-            // Create Revenge977 section (includes all non-Bo0ii plugins)
-            if (revenge977Plugins.length > 0) {
-                const revenge977Section = createPluginGroupSection('Revenge 9.7.7 and Community', 'Plugins by Revenge 9.7.7 and Community', 'revenge977-plugins');
-                pluginsCategory.appendChild(revenge977Section);
-                revenge977Plugins.forEach(plugin => {
-                    Settings.addPluginToGroup(plugin.fileName, plugin.metaData, 'revenge977-plugins');
-                });
-            }
-
-            // Setup collapsible handlers for plugin groups
-            setupPluginGroupHandlers();
-        }).catch(err => logger.error("Failed to setup plugins: " + err));
-        
+        // ModManager listeners - safe to call multiple times
         ModManager.togglePluginListener();
         ModManager.scrollListener();
         ModManager.openThemesFolder();
@@ -937,14 +964,18 @@ function setupSearchBar(): void {
 function setupBrowseModsButton(): void {
     Helpers.waitForElm('#browsePluginsThemesBtn').then(() => {
         const btn = document.getElementById("browsePluginsThemesBtn");
-        btn?.addEventListener("click", browseMods);
+        if (!btn || btn.hasAttribute('data-handler-attached')) return;
+        btn.setAttribute('data-handler-attached', 'true');
+        btn.addEventListener("click", browseMods);
     }).catch(err => logger.warn("Browse mods button not found: " + err));
 }
 
 function setupCheckUpdatesButton(): void {
     Helpers.waitForElm('#checkforupdatesBtn').then(() => {
         const btn = document.getElementById("checkforupdatesBtn");
-        btn?.addEventListener("click", async () => {
+        if (!btn || btn.hasAttribute('data-handler-attached')) return;
+        btn.setAttribute('data-handler-attached', 'true');
+        btn.addEventListener("click", async () => {
             if (btn) btn.style.pointerEvents = "none";
             ipcRenderer.send(IPC_CHANNELS.UPDATE_CHECK_USER);
             if (btn) btn.style.pointerEvents = "all";
@@ -955,7 +986,9 @@ function setupCheckUpdatesButton(): void {
 function setupCheckUpdatesOnStartupToggle(): void {
     Helpers.waitForElm('#checkForUpdatesOnStartup').then(() => {
         const toggle = document.getElementById("checkForUpdatesOnStartup");
-        toggle?.addEventListener("click", () => {
+        if (!toggle || toggle.hasAttribute('data-handler-attached')) return;
+        toggle.setAttribute('data-handler-attached', 'true');
+        toggle.addEventListener("click", () => {
             toggle.classList.toggle(CLASSES.CHECKED);
             const isChecked = toggle.classList.contains(CLASSES.CHECKED);
             logger.info(`Check for updates on startup toggled ${isChecked ? "ON" : "OFF"}`);
@@ -967,7 +1000,9 @@ function setupCheckUpdatesOnStartupToggle(): void {
 function setupDiscordRpcToggle(): void {
     Helpers.waitForElm('#discordrichpresence').then(() => {
         const toggle = document.getElementById("discordrichpresence");
-        toggle?.addEventListener("click", async () => {
+        if (!toggle || toggle.hasAttribute('data-handler-attached')) return;
+        toggle.setAttribute('data-handler-attached', 'true');
+        toggle.addEventListener("click", async () => {
             toggle.classList.toggle(CLASSES.CHECKED);
             const isChecked = toggle.classList.contains(CLASSES.CHECKED);
             logger.info(`Discord Rich Presence toggled ${isChecked ? "ON" : "OFF"}`);
@@ -987,7 +1022,9 @@ function setupDiscordRpcToggle(): void {
 function setupTransparencyToggle(): void {
     Helpers.waitForElm('#enableTransparentThemes').then(() => {
         const toggle = document.getElementById("enableTransparentThemes");
-        toggle?.addEventListener("click", () => {
+        if (!toggle || toggle.hasAttribute('data-handler-attached')) return;
+        toggle.setAttribute('data-handler-attached', 'true');
+        toggle.addEventListener("click", () => {
             toggle.classList.toggle(CLASSES.CHECKED);
             const isChecked = toggle.classList.contains(CLASSES.CHECKED);
             logger.info(`Enable transparency toggled ${isChecked ? "ON" : "OFF"}`);
@@ -1312,8 +1349,15 @@ function addTitleBar(): void {
     });
 }
 
+// Track if external player options are already being monitored
+let externalPlayerOptionsInitialized = false;
+
 // Inject VLC and MPC-HC options into Stremio's native "Play in External Player" dropdown
 function injectExternalPlayerOptions(): void {
+    // Prevent duplicate initialization - the observer and hashchange listener should only be set up once
+    if (externalPlayerOptionsInitialized) return;
+    externalPlayerOptionsInitialized = true;
+
     // Stremio uses a custom multiselect component, not native <select>
     // The dropdown opens as a floating menu container when the multiselect button is clicked
     // WARNING: Fragile selector - targets Settings > Player > "Play in External Player" option
@@ -1500,9 +1544,11 @@ function injectExternalPlayerOptions(): void {
 
         if (!optionContainer) return;
 
-        // Remove existing path display
+        // Remove existing path display and warning
         const existingDisplay = document.getElementById('enhanced-player-path-display');
         if (existingDisplay) existingDisplay.remove();
+        const existingWarning = document.getElementById('enhanced-player-warning');
+        if (existingWarning) existingWarning.remove();
 
         // Only show for VLC or MPC-HC
         if (externalPlayer !== 'vlc' && externalPlayer !== 'mpchc') return;
@@ -1524,8 +1570,15 @@ function injectExternalPlayerOptions(): void {
             pathDisplay.innerHTML = `<span style="color: #ff9800;">Not found.</span> Set custom path in Enhanced > About`;
         }
 
+        // Add warning note about position tracking
+        const warningNote = document.createElement('div');
+        warningNote.id = 'enhanced-player-warning';
+        warningNote.style.cssText = 'color: #ff9800; font-size: 11px; margin-top: 6px; padding: 6px 8px; background: rgba(255, 152, 0, 0.1); border-radius: 4px; border-left: 2px solid #ff9800;';
+        warningNote.textContent = 'Note: External players do not support position tracking. "Continue Watching" may not work accurately.';
+
         // Insert after the option container
         optionContainer.parentNode?.insertBefore(pathDisplay, optionContainer.nextSibling);
+        pathDisplay.parentNode?.insertBefore(warningNote, pathDisplay.nextSibling);
     };
 
     // Use unified observer to watch for dropdown menus appearing anywhere in DOM
@@ -1557,6 +1610,8 @@ function injectExternalPlayerOptions(): void {
             unregisterObserverHandler('external-player-menu');
             runEventCleanups('external-player-menu');
             window.removeEventListener('hashchange', cleanup);
+            // Reset the initialization flag so it can be set up again when returning to settings
+            externalPlayerOptionsInitialized = false;
         }
     };
     window.addEventListener('hashchange', cleanup);
@@ -1566,7 +1621,11 @@ function injectExternalPlayerOptions(): void {
 function setupCustomPlayerPath(): void {
     Helpers.waitForElm('#customPlayerPath').then(() => {
         const customPathInput = document.getElementById("customPlayerPath") as HTMLInputElement;
+        if (!customPathInput || customPathInput.hasAttribute('data-handler-attached')) return;
+        customPathInput.setAttribute('data-handler-attached', 'true');
+
         const browseBtn = document.getElementById("browsePlayerPath");
+        if (browseBtn) browseBtn.setAttribute('data-handler-attached', 'true');
         const statusEl = document.getElementById("playerStatus");
         const customPathContainer = document.getElementById("customPlayerPathContainer") as HTMLElement;
 
@@ -1577,7 +1636,7 @@ function setupCustomPlayerPath(): void {
             customPathContainer.style.display = shouldShow ? 'block' : 'none';
         }
 
-        customPathInput?.addEventListener("change", () => {
+        customPathInput.addEventListener("change", () => {
             localStorage.setItem(STORAGE_KEYS.EXTERNAL_PLAYER_PATH, customPathInput.value);
             logger.info(`Custom player path set to: ${customPathInput.value}`);
             if (statusEl) {
@@ -1597,6 +1656,17 @@ function setupCustomPlayerPath(): void {
             }
         });
     }).catch(err => logger.warn("Custom player path input not found: " + err));
+}
+
+/**
+ * Trigger fallback when external player fails - cleanup and navigate back
+ */
+function triggerExternalPlayerFallback(reason: string): void {
+    logger.info(`[ExternalPlayer] Fallback triggered: ${reason}`);
+    document.body.classList.remove('external-player-active');
+    isHandlingExternalPlayer = false;
+    // Small delay to ensure UI updates before navigation
+    setTimeout(() => history.back(), 100);
 }
 
 async function handleExternalPlayerInterception(): Promise<void> {
@@ -1632,24 +1702,31 @@ async function handleExternalPlayerInterception(): Promise<void> {
     isHandlingExternalPlayer = true;
     document.body.classList.add('external-player-active');
 
-    logger.info(`[ExternalPlayer] Intercepting for ${externalPlayer}...`);
+    // Safety timeout: force reset flag after 30 seconds if still stuck
+    const safetyTimeout = setTimeout(() => {
+        if (isHandlingExternalPlayer) {
+            logger.warn("[ExternalPlayer] Force resetting flag after 30s safety timeout");
+            triggerExternalPlayerFallback("Safety timeout (30s)");
+        }
+    }, 30000);
+
     logger.info(`[ExternalPlayer] Intercepting for ${externalPlayer}...`);
 
-    // Stop any existing video playback (don't clear src - it causes Stremio to error out)
-    const stopAllVideos = () => {
+    // Mute videos during URL extraction (but DON'T pause - let Stremio load the stream)
+    // Pausing prevents Stremio from loading, which causes "failed to load" errors
+    const muteAllVideos = () => {
         const videos = document.querySelectorAll('video');
         videos.forEach(video => {
             try {
-                video.pause();
                 video.muted = true;
-                // Don't set video.src = '' - it causes "Empty src attribute" error
-                // which triggers Stremio's critical error handler
+                // DON'T pause here - let the video load so we can get the stream URL
+                // and so Stremio registers it for Continue Watching
             } catch (e) {
                 // Ignore errors
             }
         });
     };
-    stopAllVideos();
+    muteAllVideos();
 
     // Get stream URL with retries
     interface PlayerState {
@@ -1756,15 +1833,13 @@ async function handleExternalPlayerInterception(): Promise<void> {
             logger.warn(`[ExternalPlayer] Attempt ${attempt + 1} error: ${(err as Error).message}`);
         }
 
-        stopAllVideos();
+        muteAllVideos();
         await new Promise(resolve => setTimeout(resolve, 200));
     }
 
     if (!streamUrl) {
         logger.error("[ExternalPlayer] Failed to get stream URL after multiple attempts");
-        // Clean up and let Stremio handle it
-        document.body.classList.remove('external-player-active');
-        isHandlingExternalPlayer = false;
+        triggerExternalPlayerFallback("Stream URL not found");
         return;
     }
 
@@ -1779,20 +1854,14 @@ async function handleExternalPlayerInterception(): Promise<void> {
         title = playerState.title;
     }
 
-    logger.info(`[ExternalPlayer] SUCCESS!`);
-    logger.info(`[ExternalPlayer] Title: ${title}`);
-    logger.info(`[ExternalPlayer] URL: ${streamUrl}`);
-    logger.info(`[ExternalPlayer] SUCCESS!`);
-    logger.info(`[ExternalPlayer] Title: ${title}`);
-    logger.info(`[ExternalPlayer] URL: ${streamUrl}`);
+    logger.info(`[ExternalPlayer] SUCCESS! Title: "${title}", URL: ${streamUrl}`);
 
-    // Final stop of all video elements
-    stopAllVideos();
+    // Keep videos muted (but let them play for Continue Watching to register)
+    muteAllVideos();
 
     // Get custom path if set
     const customPath = localStorage.getItem(STORAGE_KEYS.EXTERNAL_PLAYER_PATH) || undefined;
 
-    logger.info(`[ExternalPlayer] Launching ${externalPlayer} (custom path: ${customPath || 'auto-detect'})`);
     logger.info(`[ExternalPlayer] Launching ${externalPlayer} (custom path: ${customPath || 'auto-detect'})`);
 
     // Launch external player via IPC
@@ -1805,23 +1874,97 @@ async function handleExternalPlayerInterception(): Promise<void> {
     });
     logger.info(`[ExternalPlayer] IPC sent!`);
 
-    // Wait 10 seconds to allow Stremio to register the playback for Continue Watching
-    // Keep pausing videos during this time to prevent internal player from playing
-    logger.info(`[ExternalPlayer] Waiting 10 seconds for Continue Watching to register...`);
+    // Listen for launch result (just log, don't interrupt the 10-second flow)
+    let launchSucceeded = false;
+    let launchError: string | null = null;
 
-    const keepPaused = setInterval(() => {
-        const videos = document.querySelectorAll('video');
-        videos.forEach(video => {
-            if (!video.paused) {
-                video.pause();
-                video.muted = true;
+    const successHandler = () => {
+        launchSucceeded = true;
+        ipcRenderer.removeListener(IPC_CHANNELS.EXTERNAL_PLAYER_ERROR, errorHandler);
+        logger.info("[ExternalPlayer] Launch confirmed by main process");
+    };
+
+    const errorHandler = (_: unknown, data: { error: string }) => {
+        launchError = data.error;
+        ipcRenderer.removeListener(IPC_CHANNELS.EXTERNAL_PLAYER_LAUNCHED, successHandler);
+        logger.error(`[ExternalPlayer] Launch error reported: ${data.error}`);
+        // Don't trigger fallback here - let the 10-second wait complete for Continue Watching
+    };
+
+    ipcRenderer.once(IPC_CHANNELS.EXTERNAL_PLAYER_LAUNCHED, successHandler);
+    ipcRenderer.once(IPC_CHANNELS.EXTERNAL_PLAYER_ERROR, errorHandler);
+
+    // Wait for internal player to actually start playing (for Continue Watching to register)
+    // This is more reliable than a fixed timer - we detect actual playback
+    logger.info(`[ExternalPlayer] Waiting for internal player to start playing (for Continue Watching)...`);
+
+    const MAX_WAIT_TIME = 120000; // 2 minutes max wait (for slow 4K streams)
+    const startTime = Date.now();
+    let playbackDetected = false;
+
+    // Create a promise that resolves when playback is detected
+    const waitForPlayback = new Promise<void>((resolve) => {
+        const checkPlayback = setInterval(() => {
+            const video = document.querySelector('video') as HTMLVideoElement | null;
+
+            // Check if we've exceeded max wait time
+            if (Date.now() - startTime > MAX_WAIT_TIME) {
+                logger.warn(`[ExternalPlayer] Max wait time (${MAX_WAIT_TIME/1000}s) exceeded, proceeding anyway`);
+                clearInterval(checkPlayback);
+                resolve();
+                return;
             }
-        });
-    }, 100); // Check every 100ms
 
-    await new Promise(resolve => setTimeout(resolve, 10000));
+            if (video) {
+                // Check if video has actually started playing (currentTime > 0 means it played)
+                // isPlaying checks if video is actively playing right now
+                const hasPlayed = video.currentTime > 0;
+                const isPlaying = !video.paused && !video.ended && video.readyState > 2;
 
-    clearInterval(keepPaused);
+                if (hasPlayed || isPlaying) {
+                    logger.info(`[ExternalPlayer] Playback detected! currentTime: ${video.currentTime.toFixed(2)}s, readyState: ${video.readyState}`);
+                    playbackDetected = true;
+
+                    // Pause and mute the video now
+                    video.pause();
+                    video.muted = true;
+
+                    clearInterval(checkPlayback);
+                    resolve();
+                    return;
+                }
+
+                // Log progress periodically (every 5 seconds)
+                const elapsed = Date.now() - startTime;
+                if (elapsed > 0 && elapsed % 5000 < 100) {
+                    logger.info(`[ExternalPlayer] Still waiting... readyState: ${video.readyState}, currentTime: ${video.currentTime}, elapsed: ${(elapsed/1000).toFixed(0)}s`);
+                }
+            }
+        }, 100); // Check every 100ms
+    });
+
+    await waitForPlayback;
+
+    clearTimeout(safetyTimeout);
+
+    // Log result
+    if (playbackDetected) {
+        logger.info(`[ExternalPlayer] Playback confirmed and paused. Continue Watching should be registered.`);
+    } else {
+        logger.warn(`[ExternalPlayer] Playback not detected within timeout, but proceeding with navigation.`);
+    }
+
+    // Log launch status
+    if (launchSucceeded) {
+        logger.info(`[ExternalPlayer] External player launched successfully.`);
+    } else if (launchError) {
+        logger.warn(`[ExternalPlayer] External player had error: ${launchError}`);
+    }
+
+    // Clean up IPC listeners if still attached
+    ipcRenderer.removeListener(IPC_CHANNELS.EXTERNAL_PLAYER_LAUNCHED, successHandler);
+    ipcRenderer.removeListener(IPC_CHANNELS.EXTERNAL_PLAYER_ERROR, errorHandler);
+
     logger.info(`[ExternalPlayer] Navigating back...`);
 
     // Clean up
@@ -1945,8 +2088,6 @@ function setupScrollStateDetection(): void {
 
 // Global flag to track if we're currently handling external player
 let isHandlingExternalPlayer = false;
-// Store original video.play method
-const originalVideoPlay = HTMLVideoElement.prototype.play;
 
 // ============================================
 // QUICK RESUME - Remember last stream for Continue Watching
@@ -2124,59 +2265,32 @@ function setupQuickResume(): void {
 }
 
 function setupGlobalVideoInterception(): void {
-    // Override HTMLVideoElement.prototype.play to prevent internal player from playing
-    // when external player is enabled and we're navigating to player route
-    HTMLVideoElement.prototype.play = function(this: HTMLVideoElement): Promise<void> {
-        const externalPlayer = localStorage.getItem(STORAGE_KEYS.EXTERNAL_PLAYER);
+    // NOTE: We no longer block video.play() when external player is enabled.
+    // The video MUST actually play for Stremio to register it in Continue Watching.
+    // Our detection system in handleExternalPlayerInterception will detect when
+    // playback starts, then pause the video and navigate back.
 
-        // Check if we should block video playback
-        if (externalPlayer &&
-            externalPlayer !== EXTERNAL_PLAYERS.BUILTIN &&
-            externalPlayer !== '' &&
-            externalPlayer !== 'disabled' &&
-            externalPlayer !== 'm3u' &&
-            location.href.includes('#/player')) {
-
-            logger.info('[ExternalPlayer] Blocking video.play() - using external player');
-
-            // Pause and mute this video (don't touch src or currentTime to avoid errors)
-            this.pause();
-            this.muted = true;
-
-            // Return a resolved promise (play was "successful" from caller's perspective)
-            return Promise.resolve();
-        }
-
-        // Otherwise, use original play method
-        return originalVideoPlay.call(this);
-    };
-
-    // Inject CSS to hide player while processing external player
-    // Only hide the video element, keep navigation bar visible
+    // Inject CSS to show loading indicator while external player is being set up
     const style = document.createElement('style');
     style.id = 'enhanced-external-player-css';
     style.textContent = `
-        /* Hide ONLY the video element when external player is active */
-        /* Keep the navigation bar and controls visible */
-        body.external-player-active video {
-            visibility: hidden !important;
-            opacity: 0 !important;
-        }
+        /* Don't dim video - let user see any error messages from Stremio */
 
-        /* Show loading indicator while processing */
+        /* Show loading indicator at BOTTOM of screen (not blocking video/errors) */
         body.external-player-active::after {
-            content: 'Launching external player...';
+            content: 'External player mode active';
             position: fixed;
-            top: 50%;
+            bottom: 20px;
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translateX(-50%);
             color: white;
-            font-size: 18px;
+            font-size: 13px;
             z-index: 99999;
-            background: rgba(0,0,0,0.8);
-            padding: 20px 40px;
-            border-radius: 8px;
+            background: rgba(0,0,0,0.75);
+            padding: 10px 20px;
+            border-radius: 20px;
             pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.2);
         }
     `;
     document.head.appendChild(style);
@@ -2309,13 +2423,16 @@ function setupCollapsibleHandlers(): void {
                 }
             });
 
-            // Restore saved state
+            // Restore saved state (default to collapsed)
             const section = header.getAttribute('data-section');
             if (section) {
                 const savedState = localStorage.getItem(`enhanced-collapsible-${section}`);
                 const collapsible = header.closest('.enhanced-collapsible');
-                if (savedState === 'collapsed' && collapsible) {
-                    collapsible.classList.add('collapsed');
+                if (collapsible) {
+                    // Default to collapsed, only expand if explicitly saved as expanded
+                    if (savedState !== 'expanded') {
+                        collapsible.classList.add('collapsed');
+                    }
                 }
             }
         });
@@ -2345,9 +2462,10 @@ function handlePlayButtonClick(e: MouseEvent): void {
 
     if (playButton) {
         logger.info('[ExternalPlayer] Play button clicked - preparing for external player');
-        // Mark that we're about to handle external player
-        isHandlingExternalPlayer = true;
-        // Add class to body to hide player
+        // DON'T set isHandlingExternalPlayer here - that flag is used to prevent
+        // re-entry in handleExternalPlayerInterception. Setting it here would
+        // cause the actual handler to return early without doing anything!
+        // Just add the visual class to show loading indicator.
         document.body.classList.add('external-player-active');
     }
 }
@@ -2397,13 +2515,16 @@ function setupPluginGroupHandlers(): void {
                 }
             });
 
-            // Restore saved state
+            // Restore saved state (default to collapsed)
             const section = header.getAttribute('data-section');
             if (section) {
                 const savedState = localStorage.getItem(`plugin-group-${section}`);
                 const collapsible = header.closest('.enhanced-collapsible');
-                if (savedState === 'collapsed' && collapsible) {
-                    collapsible.classList.add('collapsed');
+                if (collapsible) {
+                    // Default to collapsed, only expand if explicitly saved as expanded
+                    if (savedState !== 'expanded') {
+                        collapsible.classList.add('collapsed');
+                    }
                 }
             }
         });

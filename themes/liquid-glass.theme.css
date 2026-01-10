@@ -1052,24 +1052,48 @@ nav[class*="horizontal-nav-bar"] [class*="buttons-container-Oc5z1"] {
     margin-top: 0 !important;
 }
 
+/* Fix spacing for Calendar page */
 .calendar-cH2jw .content-wBwrQ {
     margin-top: 0 !important;
-    padding: 70px 0 0 0 !important;
-    display: block !important;
+    padding-top: 70px !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    display: flex !important;
+    flex-direction: column !important;
     visibility: visible !important;
     opacity: 1 !important;
     position: relative !important;
-    overflow: visible !important;
+    overflow-y: auto !important;
+    height: 100% !important;
+    width: 100% !important;
 }
 
 /* Ensure calendar container is visible and properly positioned */
 .calendar-cH2jw {
-    display: block !important;
+    display: flex !important;
+    flex-direction: column !important;
     visibility: visible !important;
     opacity: 1 !important;
     position: relative !important;
     width: 100% !important;
-    height: auto !important;
+    height: 100% !important;
+    overflow: visible !important;
+}
+
+/* Calendar inner elements visibility */
+.calendar-cH2jw * {
+    visibility: visible !important;
+}
+
+/* Calendar items container */
+.calendar-cH2jw [class*="items"],
+.calendar-cH2jw [class*="container"],
+.calendar-cH2jw [class*="list"],
+.calendar-cH2jw [class*="grid"] {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 /* Fix spacing for Addons page */
@@ -1094,6 +1118,64 @@ nav[class*="horizontal-nav-bar"] [class*="buttons-container-Oc5z1"] {
     margin-top: 0 !important;
 }
 
+/* Settings page select inputs / dropdowns - glass styling */
+.settings-container-_g1tS [class*="select-input-container"],
+.settings-container-_g1tS [class*="select-input"]:not([class*="section"]),
+.settings-container-_g1tS select,
+.sections-container-ZaZpD [class*="select-input-container"],
+.sections-container-ZaZpD [class*="select-input"]:not([class*="section"]) {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    -webkit-backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+    border-radius: 8px !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Settings page select input label text */
+.settings-container-_g1tS [class*="select-input"] [class*="label"],
+.settings-container-_g1tS [class*="select-input"] [class*="value"],
+.sections-container-ZaZpD [class*="select-input"] [class*="label"],
+.sections-container-ZaZpD [class*="select-input"] [class*="value"] {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Settings page select input hover state */
+.settings-container-_g1tS [class*="select-input-container"]:hover,
+.settings-container-_g1tS [class*="select-input"]:not([class*="section"]):hover,
+.sections-container-ZaZpD [class*="select-input-container"]:hover,
+.sections-container-ZaZpD [class*="select-input"]:not([class*="section"]):hover {
+    background: rgba(80, 80, 80, 0.3) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Settings page native select element styling */
+.settings-container-_g1tS select,
+.sections-container-ZaZpD select {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    -webkit-backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+    border-radius: 8px !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    padding: 8px 12px !important;
+    outline: none !important;
+    cursor: pointer !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+}
+
+/* Native select option styling */
+.settings-container-_g1tS select option,
+.sections-container-ZaZpD select option {
+    background: rgb(40, 40, 40) !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    padding: 8px !important;
+}
+
 .discover-container-L6OGL .discover-content-CRsRg .catalog-container-VNK_T .meta-items-container-n8vNz {
     padding: 0;
     z-index: 1;
@@ -1114,7 +1196,7 @@ nav[class*="horizontal-nav-bar"] [class*="buttons-container-Oc5z1"] {
     height: 100%;
     overflow-y: auto;
     padding: 0 1rem;
-    padding-top: 0 !important;
+    padding-top: 70px !important;
     width: 100%;
 }
 

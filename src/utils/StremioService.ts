@@ -1,5 +1,5 @@
 import { getLogger } from "./logger";
-import { basename, join, resolve } from "path";
+import { basename, dirname, join, resolve } from "path";
 import { existsSync, createWriteStream, unlinkSync, readFileSync } from "fs";
 import { execFile, spawn } from "child_process";
 import { promisify } from "util";
@@ -25,61 +25,200 @@ class StremioService {
     private static logger = getLogger("StremioService");
     private static execFileAsync = promisify(execFile);
 
-    public static start(): Promise<void> {
+    // Track whether this app instance started the service
+    private static appStartedService: boolean = false;
+    private static servicePid: number | null = null;
+    private static usingBundledService: boolean = false;
+
+    /**
+     * Gets the path to the bundled Stremio Service in app resources
+     * @returns The path to bundled service executable, or null if not found
+     */
+    public static getBundledServicePath(): string | null {
+        try {
+            // In production, resources are in process.resourcesPath
+            // In development, they're in the project root
+            const resourcesPath = app.isPackaged
+                ? process.resourcesPath
+                : join(__dirname, '..', '..');
+
+            const servicePath = join(resourcesPath, 'stremio-service');
+
+            // Platform-specific subdirectories (used in development)
+            const platformDirs: Record<string, string> = {
+                'win32': 'stremio-service-windows',
+                'darwin': 'stremio-service-macos',
+                'linux': 'stremio-service-linux'
+            };
+
+            const platformDir = platformDirs[process.platform];
+            const exeName = process.platform === 'win32' ? 'stremio-service.exe' : 'stremio-service';
+
+            // Check production path first (flattened by electron-builder)
+            const productionPath = join(servicePath, exeName);
+            if (existsSync(productionPath)) {
+                this.logger.info(`Found bundled Stremio Service at: ${productionPath}`);
+                return productionPath;
+            }
+
+            // Check development path (with platform subdirectory)
+            if (platformDir) {
+                const devPath = join(servicePath, platformDir, exeName);
+                if (existsSync(devPath)) {
+                    this.logger.info(`Found bundled Stremio Service at: ${devPath}`);
+                    return devPath;
+                }
+            }
+
+            this.logger.info('Bundled Stremio Service not found, will use external installation');
+            return null;
+        } catch (error) {
+            this.logger.warn(`Error checking for bundled service: ${(error as Error).message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Checks if the bundled service is available
+     */
+    public static hasBundledService(): boolean {
+        return this.getBundledServicePath() !== null;
+    }
+
+    /**
+     * Returns whether the currently running service is the bundled one
+     */
+    public static isUsingBundledService(): boolean {
+        return this.usingBundledService;
+    }
+
+    /**
+     * Returns whether this app instance started the service
+     */
+    public static didAppStartService(): boolean {
+        return this.appStartedService;
+    }
+
+    public static async start(): Promise<void> {
+        // Check if service is already running
+        const alreadyRunning = await this.isProcessRunning();
+        if (alreadyRunning) {
+            this.logger.info("Stremio Service is already running (started externally).");
+            this.appStartedService = false;
+            return;
+        }
+
         return new Promise((resolve, reject) => {
             try {
                 this.logger.info("Starting Stremio Service...");
 
                 let child;
+                let executablePath: string | null = null;
+                let workingDir: string | undefined = undefined;
+
+                // First, try to use the bundled service
+                const bundledPath = this.getBundledServicePath();
+                if (bundledPath) {
+                    this.logger.info(`Using bundled Stremio Service: ${bundledPath}`);
+                    executablePath = bundledPath;
+                    // Set working directory to the service directory (needed for finding server.js, ffmpeg, etc.)
+                    workingDir = dirname(bundledPath);
+                    this.logger.info(`Service working directory: ${workingDir}`);
+                    this.usingBundledService = true;
+                }
 
                 switch (process.platform) {
-                    case "win32": 
-                        const exe = this.findExecutable();
-                        if (!exe) {
-                            return reject(new Error("Could not find Stremio Service executable"));
-                        }
-                        child = spawn(exe, [], { detached: true, stdio: "ignore" });
-                        break;
-                    case "darwin": 
-                        child = spawn("open", ["/Applications/StremioService.app"], { detached: true, stdio: "ignore" });
-                        break;
-                    case "linux":
-                        // Try to start from system installation first, then Flatpak
-                        const systemPaths = [
-                            "/usr/bin/stremio-service",
-                            "/usr/local/bin/stremio-service",
-                            "/opt/stremio-service/stremio-service",
-                            "/usr/lib/stremio-service/stremio-service"
-                        ];
-                        
-                        let servicePath: string | null = null;
-                        for (const path of systemPaths) {
-                            if (existsSync(path)) {
-                                servicePath = path;
-                                break;
+                    case "win32":
+                        if (!executablePath) {
+                            executablePath = this.findExecutable();
+                            if (executablePath) {
+                                workingDir = dirname(executablePath);
                             }
                         }
-                        
-                        if (servicePath) {
-                            // Start from system installation
-                            this.logger.info(`Starting Stremio Service from system path: ${servicePath}`);
-                            child = spawn(servicePath, [], { detached: true, stdio: "ignore" });
+                        if (!executablePath) {
+                            return reject(new Error("Could not find Stremio Service executable"));
+                        }
+                        child = spawn(executablePath, [], {
+                            detached: true,
+                            stdio: "ignore",
+                            cwd: workingDir
+                        });
+                        break;
+                    case "darwin":
+                        if (executablePath) {
+                            // Use bundled service directly
+                            child = spawn(executablePath, [], {
+                                detached: true,
+                                stdio: "ignore",
+                                cwd: workingDir
+                            });
                         } else {
-                            // Fallback to Flatpak
-                            this.logger.info("Starting Stremio Service via Flatpak");
-                            child = spawn("flatpak", ["run", "com.stremio.Service"], { detached: true, stdio: "ignore" });
+                            // Fall back to installed app
+                            child = spawn("open", ["/Applications/StremioService.app"], { detached: true, stdio: "ignore" });
+                        }
+                        break;
+                    case "linux":
+                        if (executablePath) {
+                            // Use bundled service
+                            child = spawn(executablePath, [], {
+                                detached: true,
+                                stdio: "ignore",
+                                cwd: workingDir
+                            });
+                        } else {
+                            // Try to start from system installation first, then Flatpak
+                            const systemPaths = [
+                                "/usr/bin/stremio-service",
+                                "/usr/local/bin/stremio-service",
+                                "/opt/stremio-service/stremio-service",
+                                "/usr/lib/stremio-service/stremio-service"
+                            ];
+
+                            let servicePath: string | null = null;
+                            for (const path of systemPaths) {
+                                if (existsSync(path)) {
+                                    servicePath = path;
+                                    break;
+                                }
+                            }
+
+                            if (servicePath) {
+                                // Start from system installation
+                                this.logger.info(`Starting Stremio Service from system path: ${servicePath}`);
+                                child = spawn(servicePath, [], { detached: true, stdio: "ignore" });
+                            } else {
+                                // Fallback to Flatpak
+                                this.logger.info("Starting Stremio Service via Flatpak");
+                                child = spawn("flatpak", ["run", "com.stremio.Service"], { detached: true, stdio: "ignore" });
+                            }
                         }
                         break;
                     default:
                         return reject(new Error("Unsupported platform"));
                 }
 
+                // Handle spawn errors
+                child.on('error', (err) => {
+                    this.logger.error(`Failed to spawn Stremio Service: ${err.message}`);
+                    reject(err);
+                });
+
+                // Store the PID for later termination and mark that we started it
+                if (child.pid) {
+                    this.servicePid = child.pid;
+                    this.appStartedService = true;
+                    this.logger.info(`Stremio Service started with PID: ${child.pid}`);
+                } else {
+                    this.logger.warn("Stremio Service spawned but no PID returned");
+                }
+
                 child.unref();
 
-                this.logger.info("Stremio Service started.");
+                this.logger.info("Stremio Service started by this app.");
                 resolve();
 
             } catch (err) {
+                this.logger.error(`Error in start(): ${(err as Error).message}`);
                 reject(err);
             }
         });
@@ -384,6 +523,8 @@ class StremioService {
     }
     
     public static async isServiceInstalled(): Promise<boolean> {
+        // Note: This checks for EXTERNAL installations only (not bundled service)
+        // Use hasBundledService() to check for bundled service
         const platform = process.platform;
 
         switch(platform) {
@@ -444,26 +585,86 @@ class StremioService {
     }
 
     private static async isServiceInstalledWindows(): Promise<boolean> {
-        const localAppData = process.env.LOCALAPPDATA;
-        if (!localAppData) return false;
+        const pathsToCheck: string[] = [];
 
-        const servicePath = join(localAppData, "Programs", "StremioService", "stremio-service.exe");
-        return existsSync(servicePath);
+        // Check LOCALAPPDATA\Programs\StremioService
+        const localAppData = process.env.LOCALAPPDATA;
+        if (localAppData) {
+            pathsToCheck.push(join(localAppData, "Programs", "StremioService", "stremio-service.exe"));
+        }
+
+        // Check Program Files
+        const programFiles = process.env.ProgramFiles;
+        if (programFiles) {
+            pathsToCheck.push(join(programFiles, "StremioService", "stremio-service.exe"));
+        }
+
+        // Check Program Files (x86)
+        const programFilesX86 = process.env['ProgramFiles(x86)'];
+        if (programFilesX86) {
+            pathsToCheck.push(join(programFilesX86, "StremioService", "stremio-service.exe"));
+        }
+
+        // Check each path
+        for (const servicePath of pathsToCheck) {
+            if (existsSync(servicePath)) {
+                this.logger.info(`Found Stremio Service at: ${servicePath}`);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static async installWindows(filePath: string) {
-        const ps = `Start-Process -FilePath "${filePath}" -ArgumentList '/S' -Verb RunAs`;
-        await this.execFileAsync("powershell.exe", ["-ExecutionPolicy", "Bypass", "-NoProfile", "-Command", ps], {
-            windowsHide: true,
-        });
-        
-        this.logger.info("Waiting for Stremio Service installation to finish...");
-        const success = await this.waitForInstallCompletion(TIMEOUTS.INSTALL_COMPLETION, filePath);
-        
-        if (success) {
-            this.logger.info("Stremio Service detected as installed or running.");
+        this.logger.info("Starting Windows installation process...");
+
+        // Use -Wait flag to wait for the installer to complete
+        // Removed /S (silent) flag as it doesn't work reliably with UAC elevation
+        const ps = `Start-Process -FilePath "${filePath}" -Verb RunAs -Wait -PassThru`;
+
+        try {
+            await this.execFileAsync("powershell.exe", [
+                "-ExecutionPolicy", "Bypass",
+                "-NoProfile",
+                "-Command", ps
+            ], {
+                windowsHide: true,
+                timeout: TIMEOUTS.INSTALL_COMPLETION + 30000 // Add buffer for UAC prompt
+            });
+
+            this.logger.info("Installer process completed.");
+        } catch (error) {
+            // If timeout or error, check if installation succeeded anyway
+            this.logger.warn(`Installer process returned error or timeout: ${(error as Error).message}`);
+        }
+
+        // Give the system a moment to register the installation
+        await new Promise(r => setTimeout(r, 2000));
+
+        // Verify installation
+        const installed = await this.isServiceInstalled();
+        if (installed) {
+            this.logger.info("Stremio Service installation verified successfully.");
+            // Clean up installer file
+            if (existsSync(filePath)) {
+                try {
+                    unlinkSync(filePath);
+                    this.logger.info("Installer file cleaned up.");
+                } catch (err) {
+                    this.logger.warn("Failed to delete installer file: " + (err as Error).message);
+                }
+            }
         } else {
-            this.logger.warn("Installation timeout or failed to detect Stremio Service.");
+            // Fall back to polling-based wait
+            this.logger.info("Installation not immediately detected, waiting for completion...");
+            const success = await this.waitForInstallCompletion(TIMEOUTS.INSTALL_COMPLETION, filePath);
+
+            if (success) {
+                this.logger.info("Stremio Service detected as installed or running.");
+            } else {
+                this.logger.warn("Installation timeout or failed to detect Stremio Service.");
+            }
         }
     }
 
@@ -577,19 +778,77 @@ class StremioService {
     public static terminate(): number {
         try {
             this.logger.info("Terminating Stremio Service.");
-            
-            const pid = this.getStremioServicePid();
+
+            // Use stored PID first, fall back to system lookup
+            const pid = this.servicePid || this.getStremioServicePid();
             if (pid) {
                 process.kill(pid, 'SIGTERM');
                 this.logger.info("Stremio Service terminated.");
-                return 0; 
+                // Reset tracking flags
+                this.appStartedService = false;
+                this.servicePid = null;
+                return 0;
             } else {
                 this.logger.error("Failed to find Stremio Service PID.");
                 return 1;
             }
         } catch (e) {
             this.logger.error(`Error terminating service: ${(e as Error).message}`);
-            return 2; 
+            return 2;
+        }
+    }
+
+    /**
+     * Restarts the Stremio Service.
+     * This is useful when streaming configuration changes require a service restart.
+     * @returns Promise that resolves when the service has been restarted
+     */
+    public static async restartService(): Promise<boolean> {
+        try {
+            this.logger.info("Restarting Stremio Service...");
+
+            // Only terminate if we started it or if it's running
+            const wasRunning = await this.isProcessRunning();
+
+            if (wasRunning) {
+                this.terminate();
+                // Wait for the service to fully stop
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+            // Start the service again
+            await this.start();
+
+            // Verify it's running
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const isRunning = await this.isProcessRunning();
+
+            if (isRunning) {
+                this.logger.info("Stremio Service restarted successfully");
+                return true;
+            } else {
+                this.logger.warn("Stremio Service may not have started properly after restart");
+                return false;
+            }
+        } catch (error) {
+            this.logger.error(`Failed to restart Stremio Service: ${(error as Error).message}`);
+            return false;
+        }
+    }
+
+    /**
+     * Terminates the Stremio Service only if this app instance started it.
+     * This prevents killing a service that was started by another application.
+     * @returns true if service was terminated, false if it was left running
+     */
+    public static terminateIfStartedByApp(): boolean {
+        if (this.appStartedService) {
+            this.logger.info("App started the service, terminating...");
+            const result = this.terminate();
+            return result === 0;
+        } else {
+            this.logger.info("Service was not started by this app, leaving it running.");
+            return false;
         }
     }
     
@@ -642,28 +901,51 @@ class StremioService {
     }
 
     public static findExecutable(): string | null {
+        // Check bundled service first
+        const bundledPath = this.getBundledServicePath();
+        if (bundledPath) {
+            return bundledPath;
+        }
+
+        // Check current directory
         const localPath = resolve('./stremio-service.exe');
         if (existsSync(localPath)) {
             this.logger.info("StremioService executable found in the current directory.");
             return localPath;
         }
 
-        const localAppData = process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local');
-        const installationPath = join(localAppData, 'Programs', 'StremioService', 'stremio-service.exe');
-        const fullPath = resolve(installationPath);
-        this.logger.info("Checking existence of " + fullPath);
+        const pathsToCheck: string[] = [];
 
-        try {
-            if (existsSync(fullPath)) {
-                this.logger.info(`StremioService executable found in OS-specific path (win32).`);
-                return fullPath;
-            } else {
-                this.logger.warn(`StremioService executable not found at ${fullPath}`);
-            }
-        } catch (error) {
-            this.logger.error(`Error checking StremioService existence in ${fullPath}: ${(error as Error).message}`);
+        // LOCALAPPDATA\Programs\StremioService
+        const localAppData = process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local');
+        pathsToCheck.push(join(localAppData, 'Programs', 'StremioService', 'stremio-service.exe'));
+
+        // Program Files
+        const programFiles = process.env.ProgramFiles;
+        if (programFiles) {
+            pathsToCheck.push(join(programFiles, 'StremioService', 'stremio-service.exe'));
         }
-        
+
+        // Program Files (x86)
+        const programFilesX86 = process.env['ProgramFiles(x86)'];
+        if (programFilesX86) {
+            pathsToCheck.push(join(programFilesX86, 'StremioService', 'stremio-service.exe'));
+        }
+
+        for (const path of pathsToCheck) {
+            const fullPath = resolve(path);
+            this.logger.info("Checking existence of " + fullPath);
+            try {
+                if (existsSync(fullPath)) {
+                    this.logger.info(`StremioService executable found at: ${fullPath}`);
+                    return fullPath;
+                }
+            } catch (error) {
+                this.logger.error(`Error checking StremioService existence at ${fullPath}: ${(error as Error).message}`);
+            }
+        }
+
+        this.logger.warn("StremioService executable not found in any known location");
         return null;
     }
     

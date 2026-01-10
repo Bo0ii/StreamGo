@@ -90,6 +90,8 @@ export const STORAGE_KEYS = {
     VIDEO_FILTER_SATURATION: 'videoFilterSaturation',
     VIDEO_FILTER_TEMPERATURE: 'videoFilterTemperature',
     VIDEO_FILTER_ENABLED: 'videoFilterEnabled',
+    // Streaming performance settings
+    STREAMING_PROFILE: 'streamingProfile',
 } as const;
 
 // IPC Channel names for main <-> renderer communication
@@ -112,9 +114,15 @@ export const IPC_CHANNELS = {
     LAUNCH_EXTERNAL_PLAYER: 'launch-external-player',
     DETECT_PLAYER: 'detect-player',
     BROWSE_PLAYER_PATH: 'browse-player-path',
+    EXTERNAL_PLAYER_LAUNCHED: 'external-player-launched',
+    EXTERNAL_PLAYER_ERROR: 'external-player-error',
     // Player enhancement IPC channels
     SAVE_SCREENSHOT: 'save-screenshot',
     SCREENSHOT_SAVED: 'screenshot-saved',
+    // Streaming performance IPC channels
+    GET_STREAMING_CONFIG: 'get-streaming-config',
+    SET_STREAMING_PROFILE: 'set-streaming-profile',
+    RESTART_STREAMING_SERVICE: 'restart-streaming-service',
 } as const;
 
 // External player options
@@ -209,3 +217,41 @@ export const PLAYER_DEFAULTS = {
 
 // Playback speed options
 export const PLAYBACK_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+
+// Streaming performance profiles
+export const STREAMING_PROFILES = {
+    CONSERVATIVE: 'conservative',
+    BALANCED: 'balanced',
+    AGGRESSIVE: 'aggressive',
+} as const;
+
+// Streaming performance profile settings (BitTorrent configuration)
+export const STREAMING_PROFILE_SETTINGS = {
+    conservative: {
+        cacheSize: 2147483648,           // 2GB
+        btMaxConnections: 55,
+        btHandshakeTimeout: 20000,
+        btRequestTimeout: 4000,
+        btDownloadSpeedSoftLimit: 2097152,   // 2MB/s
+        btDownloadSpeedHardLimit: 20971520,  // 20MB/s
+        btMinPeersForStable: 5,
+    },
+    balanced: {
+        cacheSize: 5368709120,           // 5GB
+        btMaxConnections: 100,
+        btHandshakeTimeout: 15000,
+        btRequestTimeout: 3000,
+        btDownloadSpeedSoftLimit: 3145728,   // 3MB/s
+        btDownloadSpeedHardLimit: 31457280,  // 30MB/s
+        btMinPeersForStable: 7,
+    },
+    aggressive: {
+        cacheSize: 10737418240,          // 10GB
+        btMaxConnections: 200,
+        btHandshakeTimeout: 10000,
+        btRequestTimeout: 2000,
+        btDownloadSpeedSoftLimit: 4194304,   // 4MB/s
+        btDownloadSpeedHardLimit: 41943040,  // 40MB/s
+        btMinPeersForStable: 10,
+    },
+} as const;

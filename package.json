@@ -111,15 +111,36 @@
 						"x64"
 					]
 				}
+			],
+			"extraResources": [
+				{
+					"from": "stremio-service/stremio-service-windows",
+					"to": "stremio-service",
+					"filter": ["**/*"]
+				}
 			]
 		},
 		"mac": {
 			"target": "dmg",
-			"icon": "images/icons/main.png"
+			"icon": "images/icons/main.png",
+			"extraResources": [
+				{
+					"from": "stremio-service/stremio-service-macos",
+					"to": "stremio-service",
+					"filter": ["**/*"]
+				}
+			]
 		},
 		"linux": {
 			"target": "AppImage",
-			"icon": "images/icons/main.png"
+			"icon": "images/icons/main.png",
+			"extraResources": [
+				{
+					"from": "stremio-service/stremio-service-linux",
+					"to": "stremio-service",
+					"filter": ["**/*"]
+				}
+			]
 		}
 	}
 }

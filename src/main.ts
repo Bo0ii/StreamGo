@@ -16,6 +16,8 @@ import StreamingServer from "./utils/StreamingServer";
 import Helpers from "./utils/Helpers";
 import StremioService from "./utils/StremioService";
 import ExternalPlayer from "./utils/ExternalPlayer";
+import SystemTray from "./utils/SystemTray";
+import StreamingConfig from "./core/StreamingConfig";
 
 app.setName("streamgo");
 
@@ -89,6 +91,15 @@ app.commandLine.appendSwitch('disable-features', 'BlockInsecurePrivateNetworkReq
 app.commandLine.appendSwitch('enable-accelerated-video-decode');
 app.commandLine.appendSwitch('enable-accelerated-video-encode');
 
+// ============================================
+// Media Buffering & Network Optimizations
+// Improves streaming performance for HD/4K content
+// ============================================
+app.commandLine.appendSwitch('media-cache-size', '536870912'); // 512MB media cache
+app.commandLine.appendSwitch('enable-tcp-fast-open');
+app.commandLine.appendSwitch('enable-quic');
+app.commandLine.appendSwitch('enable-async-dns');
+
 async function createWindow() {
     mainWindow = new BrowserWindow({
         webPreferences: {
@@ -132,6 +143,11 @@ async function createWindow() {
     // Show window when ready to prevent white flash and ensure smooth first paint
     mainWindow.once('ready-to-show', () => {
         mainWindow?.show();
+
+        // Initialize system tray
+        if (mainWindow) {
+            SystemTray.initialize(mainWindow);
+        }
     });
 
     helpers.setMainWindow(mainWindow);
@@ -287,9 +303,15 @@ async function createWindow() {
     });
 
     // External player IPC handlers
-    ipcMain.on(IPC_CHANNELS.LAUNCH_EXTERNAL_PLAYER, (_, data: { player: string; url: string; title?: string; customPath?: string }) => {
+    ipcMain.on(IPC_CHANNELS.LAUNCH_EXTERNAL_PLAYER, (event, data: { player: string; url: string; title?: string; customPath?: string }) => {
         logger.info(`Launching external player: ${data.player} with URL: ${data.url}`);
-        ExternalPlayer.launch(data.player, data.url, data.title, data.customPath);
+        const result = ExternalPlayer.launch(data.player, data.url, data.title, data.customPath);
+
+        if (result.success) {
+            event.sender.send(IPC_CHANNELS.EXTERNAL_PLAYER_LAUNCHED, { success: true });
+        } else {
+            event.sender.send(IPC_CHANNELS.EXTERNAL_PLAYER_ERROR, { error: result.error });
+        }
     });
 
     ipcMain.handle(IPC_CHANNELS.DETECT_PLAYER, (_, player: string) => {
@@ -335,6 +357,31 @@ async function createWindow() {
         }
     });
 
+    // Streaming performance configuration IPC handlers
+    ipcMain.handle(IPC_CHANNELS.GET_STREAMING_CONFIG, () => {
+        const currentSettings = StreamingConfig.readServerSettings();
+        const currentProfile = StreamingConfig.detectCurrentProfile();
+        const settingsPath = StreamingConfig.getServerSettingsPath();
+
+        return {
+            settings: currentSettings,
+            profile: currentProfile,
+            settingsPath: settingsPath,
+        };
+    });
+
+    ipcMain.handle(IPC_CHANNELS.SET_STREAMING_PROFILE, async (_, profile: string) => {
+        logger.info(`Setting streaming profile to: ${profile}`);
+        const success = StreamingConfig.applyProfile(profile as Parameters<typeof StreamingConfig.applyProfile>[0]);
+        return { success, profile };
+    });
+
+    ipcMain.handle(IPC_CHANNELS.RESTART_STREAMING_SERVICE, async () => {
+        logger.info("Restarting streaming service to apply configuration changes...");
+        const success = await StremioService.restartService();
+        return { success };
+    });
+
     // Opens links in external browser instead of opening them in the Electron app.
     mainWindow.webContents.setWindowOpenHandler((details: Electron.HandlerDetails) => {
         shell.openExternal(details.url);
@@ -346,10 +393,6 @@ async function createWindow() {
         logger.info("Developer tools flag detected. Opening DevTools in detached mode...");
         mainWindow.webContents.openDevTools({ mode: "detach" }); 
     }
-
-    // mainWindow.on('closed', () => {
-    //     if(!process.argv.includes("--no-stremio-service") && StremioService.isProcessRunning()) StremioService.terminate();
-    // });
 }
 
 // Use Stremio Service for streaming
@@ -425,55 +468,81 @@ app.on("ready", async () => {
     
     if(!process.argv.includes("--no-stremio-server")) {
         if(!await StremioService.isProcessRunning()) {
-            let platform = process.platform;
-
-            // If the user is on Windows, give the option to either use Stremio Service or server.js
-            if(platform === "win32") {
-                // Check if Stremio Service is installed first - if so, auto-start it
-                if(await StremioService.isServiceInstalled()) {
-                    logger.info("Stremio Service is installed. Auto-starting...");
-                    try {
-                        await useStremioService();
-                        // Save preference for future launches
-                        if(!existsSync(useStremioServiceFlagPath)) {
-                            writeFileSync(useStremioServiceFlagPath, "1");
-                        }
-                    } catch (err) {
-                        logger.error(`Failed to auto-start Stremio Service: ${(err as Error).message}`);
-                    }
-                } else if(existsSync(useStremioServiceFlagPath)) {
-                    // User previously chose Stremio Service but it's not installed - show popup again
-                    logger.info("Stremio Service was previously selected but is not installed. Showing installation prompt...");
-                    await useStremioService();
-                } else if(existsSync(useServerJSFlagPath)) {
-                    await useServerJS();
-                } else {
-                    await chooseStreamingServer();
+            // Priority 1: Use bundled service (always available, auto-start)
+            if(StremioService.hasBundledService()) {
+                logger.info("Bundled Stremio Service found. Auto-starting...");
+                try {
+                    await StremioService.start();
+                    logger.info("Bundled Stremio Service started successfully.");
+                } catch (err) {
+                    logger.error(`Failed to start bundled Stremio Service: ${(err as Error).message}`);
                 }
-            // For macOS and Linux, check if Stremio Service is installed first - if so, auto-start it
-            } else if (platform === "darwin" || platform === "linux") {
-                // Check if Stremio Service is installed first - if so, auto-start it
-                if(await StremioService.isServiceInstalled()) {
-                    logger.info("Stremio Service is installed. Auto-starting...");
-                    try {
-                        await StremioService.start();
-                    } catch (err) {
-                        logger.error(`Failed to auto-start Stremio Service: ${(err as Error).message}`);
-                        // Service exists but failed to start - show popup to reinstall
+            }
+            // Priority 2: Fall back to external installation or download prompt
+            else {
+                let platform = process.platform;
+
+                if(platform === "win32") {
+                    // Check if external Stremio Service is installed
+                    if(await StremioService.isServiceInstalled()) {
+                        logger.info("External Stremio Service is installed. Auto-starting...");
+                        try {
+                            await useStremioService();
+                            if(!existsSync(useStremioServiceFlagPath)) {
+                                writeFileSync(useStremioServiceFlagPath, "1");
+                            }
+                        } catch (err) {
+                            logger.error(`Failed to auto-start Stremio Service: ${(err as Error).message}`);
+                        }
+                    } else if(existsSync(useStremioServiceFlagPath)) {
+                        logger.info("Stremio Service was previously selected but is not installed. Showing installation prompt...");
+                        await useStremioService();
+                    } else if(existsSync(useServerJSFlagPath)) {
+                        await useServerJS();
+                    } else {
+                        await chooseStreamingServer();
+                    }
+                } else if (platform === "darwin" || platform === "linux") {
+                    if(await StremioService.isServiceInstalled()) {
+                        logger.info("External Stremio Service is installed. Auto-starting...");
+                        try {
+                            await StremioService.start();
+                        } catch (err) {
+                            logger.error(`Failed to auto-start Stremio Service: ${(err as Error).message}`);
+                            await useStremioService();
+                        }
+                    } else {
                         await useStremioService();
                     }
-                } else {
-                    // Service not installed - show popup to install
-                    await useStremioService();
                 }
             }
         } else logger.info("Stremio Service is already running.");
     } else logger.info("Launching without Stremio streaming server.");
     
     createWindow();
-    
+
     app.on("activate", () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+
+    // Cleanup handler for when the app is about to quit
+    app.on("before-quit", () => {
+        logger.info("App is quitting, checking if service needs termination...");
+
+        // Destroy system tray
+        SystemTray.destroy();
+
+        if (!process.argv.includes("--no-stremio-service")) {
+            StremioService.terminateIfStartedByApp();
+        }
+    });
+
+    // Fallback cleanup for crash scenarios
+    app.on("will-quit", () => {
+        logger.info("App will quit, ensuring service cleanup...");
+        if (!process.argv.includes("--no-stremio-service")) {
+            StremioService.terminateIfStartedByApp();
+        }
     });
 });
 
@@ -572,6 +641,11 @@ async function useServerJS() {
 
 app.on("window-all-closed", () => {
     logger.info("Closing app...");
+
+    // Terminate Stremio Service if we started it
+    if (!process.argv.includes("--no-stremio-service")) {
+        StremioService.terminateIfStartedByApp();
+    }
 
     if (process.platform !== "darwin") {
         app.quit();

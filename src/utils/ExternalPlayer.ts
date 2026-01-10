@@ -5,6 +5,12 @@ import * as process from 'process';
 
 const logger = getLogger("ExternalPlayer");
 
+// Result type for launch operation
+export interface LaunchResult {
+    success: boolean;
+    error?: string;
+}
+
 // Player executable paths by platform
 const PLAYER_PATHS: Record<string, Record<string, string[]>> = {
     win32: {
@@ -70,20 +76,27 @@ class ExternalPlayer {
 
     /**
      * Launch an external player with the given stream URL
+     * @returns LaunchResult indicating success or failure with error message
      */
-    public static launch(player: string, url: string, title?: string, customPath?: string): void {
+    public static launch(player: string, url: string, title?: string, customPath?: string): LaunchResult {
+        logger.info(`[Launch] Platform: ${process.platform}, Player: ${player}`);
+        logger.info(`[Launch] Custom path: ${customPath || 'none (auto-detect)'}`);
+
         const playerPath = customPath && this.validatePath(customPath)
             ? customPath
             : this.detectPlayer(player);
 
+        logger.info(`[Launch] Resolved playerPath: ${playerPath || 'NOT FOUND'}`);
+
         if (!playerPath) {
-            logger.error(`Cannot launch ${player}: player not found`);
-            return;
+            const error = `Cannot launch ${player}: player not found. Install ${player.toUpperCase()} or set a custom path in settings.`;
+            logger.error(error);
+            return { success: false, error };
         }
 
         const args = this.getPlayerArgs(player, url, title);
 
-        logger.info(`Launching ${player}: ${playerPath} ${args.join(' ')}`);
+        logger.info(`[Launch] Spawning: "${playerPath}" with args: ${JSON.stringify(args)}`);
 
         try {
             const child = spawn(playerPath, args, {
@@ -91,9 +104,12 @@ class ExternalPlayer {
                 stdio: "ignore"
             });
             child.unref();
-            logger.info(`${player} launched successfully`);
+            logger.info(`[Launch] ${player} launched successfully`);
+            return { success: true };
         } catch (err) {
-            logger.error(`Failed to launch ${player}: ${(err as Error).message}`);
+            const error = `Failed to launch ${player}: ${(err as Error).message}`;
+            logger.error(error);
+            return { success: false, error };
         }
     }
 
