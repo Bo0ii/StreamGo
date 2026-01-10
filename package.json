@@ -67,7 +67,6 @@
 		},
 		"files": [
 			"dist/**/*",
-			"images/**/*",
 			"index.html",
 			"package.json"
 		],
@@ -80,6 +79,11 @@
 			{
 				"from": "themes",
 				"to": "themes",
+				"filter": ["**/*"]
+			},
+			{
+				"from": "images",
+				"to": "images",
 				"filter": ["**/*"]
 			}
 		],

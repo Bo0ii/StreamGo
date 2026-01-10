@@ -399,7 +399,7 @@ nav[class*="horizontal-nav-bar"][style] {
 /* App icon in top left corner - will be injected via JavaScript */
 .app-icon-glass-theme {
     position: absolute !important;
-    left: 38px !important;
+    left: 48px !important; /* Added 10px left padding (38px + 4px + 6px) */
     top: 50% !important;
     transform: translate(-50%, -50%) !important;
     width: 50px !important;

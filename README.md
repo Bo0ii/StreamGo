@@ -38,6 +38,7 @@
 - [What is StreamGo?](#what-is-streamgo)
 	- [How It Works](#how-it-works)
 	- [Features](#features)
+- [Exclusive Features](#exclusive-features)
 - [Downloads](#downloads)
 - [Build From Source](#build-from-source)
 - [Themes and Plugins](#themes-and-plugins)
@@ -61,6 +62,34 @@ StreamGo is an Electron-based [Stremio](https://www.stremio.com/) desktop client
 - **Themes** - Customize the look and feel of Stremio with different themes to match your style.
 - **Plugins** - Extend Stremio's functionality with JavaScript plugins for more features.
 - **Built-in Toggleable Discord Rich Presence** - Show what you're watching on Discord with an easy-to-toggle Rich Presence feature.
+
+## Exclusive Features
+
+StreamGo includes several exclusive features that enhance your Stremio experience beyond the standard version:
+
+### Optimized Speed & Performance
+StreamGo addresses a major performance issue found in other Stremio clients by implementing extensive optimizations that make the UI feel truly native and smooth:
+
+- **GPU-Accelerated Rendering** - Platform-specific rendering backends (Metal for macOS, D3D11 for Windows, OpenGL for Linux) ensure optimal performance on your system with full GPU acceleration enabled.
+- **144Hz+ High Refresh Rate Support** - Optimized for smooth scrolling and transitions on high refresh rate displays (144Hz, 240Hz, and beyond) with unlocked frame rates and disabled VSync for consistent, responsive performance.
+- **Intelligent Scroll Optimizations** - Dynamic scroll state detection that automatically disables heavy effects (transitions, shadows, blur) during scrolling for buttery-smooth 200fps+ performance, then re-enables them when idle.
+- **Hardware Video Decoding** - Full HEVC/H.265 hardware decoding support for efficient video playback with reduced CPU usage and better battery life on supported hardware.
+- **Native-Like Smoothness** - GPU-accelerated compositing, zero-copy rendering, and optimized rasterization pipelines ensure the UI feels as responsive and fluid as a native desktop application, addressing the laggy and janky scrolling issues common in other Stremio clients.
+- **Smart Resource Management** - Consolidated observers, RAF-batched handlers, and early DOM loading minimize overhead and ensure fast startup times and responsive interactions.
+
+### Core Systems
+- **Automatic Update System** - StreamGo automatically checks for updates and can download and install the latest version directly from within the app, ensuring you always have the newest features and bug fixes.
+- **Automatic Stremio Service Download & Installation** - The app automatically detects if Stremio Service is missing and offers to download and install it for you, with support for Windows, macOS, and Linux (including Debian, RPM, and Flatpak distributions).
+
+### Built-in Plugins by Bo0ii
+- **Playback Preview** - Netflix-style trailer preview system that automatically plays trailers when you hover over movie or TV show posters, giving you a quick preview before selecting content.
+- **Card Hover Info** - Enhanced movie and show cards that display IMDb ratings and release dates when you hover over them, providing instant information at a glance.
+- **Enhancements Tweaks** - A comprehensive plugin that adds interface tweaks, player enhancements, and subtitle customization options all in one package.
+- **Enhanced External Player** - Seamlessly run movies and shows in external players like VLC or MPC-HC with automatic detection and smooth integration, giving you more control over your viewing experience.
+
+### Other Exclusive Features
+- **Built-in Discord Rich Presence** - Toggleable Discord Rich Presence integration that displays what you're watching on Discord, allowing friends to see your current activity (can be enabled/disabled in settings).
+- **Extensive Bug Fixes & Optimizations** - Continuous improvements addressing playback issues, cross-platform compatibility, audio track selection, subtitle menu functionality, and many other issues that plague other Stremio clients. Regular updates ensure a stable, polished experience.
 
 ## Downloads
 You can download the latest version from [the releases tab](https://github.com/Bo0ii/StreamGo/releases).
