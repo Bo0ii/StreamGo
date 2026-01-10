@@ -236,21 +236,17 @@ jobs:
             if [ -f "latest-mac-x64.yml" ]; then
               SHA512_X64=$(get_sha512 latest-mac-x64.yml)
               SIZE_X64=$(get_size latest-mac-x64.yml)
-              cat >> latest-mac.yml << EOF
-  - url: StreamGo-${VERSION}.dmg
-    sha512: ${SHA512_X64}
-    size: ${SIZE_X64}
-EOF
+              echo "  - url: StreamGo-${VERSION}.dmg" >> latest-mac.yml
+              echo "    sha512: ${SHA512_X64}" >> latest-mac.yml
+              echo "    size: ${SIZE_X64}" >> latest-mac.yml
             fi
 
             if [ -f "latest-mac-arm64.yml" ]; then
               SHA512_ARM64=$(get_sha512 latest-mac-arm64.yml)
               SIZE_ARM64=$(get_size latest-mac-arm64.yml)
-              cat >> latest-mac.yml << EOF
-  - url: StreamGo-${VERSION}-arm64.dmg
-    sha512: ${SHA512_ARM64}
-    size: ${SIZE_ARM64}
-EOF
+              echo "  - url: StreamGo-${VERSION}-arm64.dmg" >> latest-mac.yml
+              echo "    sha512: ${SHA512_ARM64}" >> latest-mac.yml
+              echo "    size: ${SIZE_ARM64}" >> latest-mac.yml
             fi
 
             # Set default path (prefer x64)
@@ -277,21 +273,17 @@ EOF
             if [ -f "latest-linux-x64.yml" ]; then
               SHA512_X64=$(get_sha512 latest-linux-x64.yml)
               SIZE_X64=$(get_size latest-linux-x64.yml)
-              cat >> latest-linux.yml << EOF
-  - url: StreamGo-${VERSION}.AppImage
-    sha512: ${SHA512_X64}
-    size: ${SIZE_X64}
-EOF
+              echo "  - url: StreamGo-${VERSION}.AppImage" >> latest-linux.yml
+              echo "    sha512: ${SHA512_X64}" >> latest-linux.yml
+              echo "    size: ${SIZE_X64}" >> latest-linux.yml
             fi
 
             if [ -f "latest-linux-arm64.yml" ]; then
               SHA512_ARM64=$(get_sha512 latest-linux-arm64.yml)
               SIZE_ARM64=$(get_size latest-linux-arm64.yml)
-              cat >> latest-linux.yml << EOF
-  - url: StreamGo-${VERSION}-arm64.AppImage
-    sha512: ${SHA512_ARM64}
-    size: ${SIZE_ARM64}
-EOF
+              echo "  - url: StreamGo-${VERSION}-arm64.AppImage" >> latest-linux.yml
+              echo "    sha512: ${SHA512_ARM64}" >> latest-linux.yml
+              echo "    size: ${SIZE_ARM64}" >> latest-linux.yml
             fi
 
             if [ -f "latest-linux-x64.yml" ]; then
