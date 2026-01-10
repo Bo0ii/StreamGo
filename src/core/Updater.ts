@@ -226,31 +226,33 @@ class Updater {
             if (!pattern.test(a.name)) return false;
             const name = a.name.toLowerCase();
 
-            // For Windows, prefer Setup.exe files (NSIS installer)
-            // Release naming: StreamGo.Setup.{version}.exe (no arch suffix)
+            // For Windows, prefer the main installer (not portable)
+            // Release naming: StreamGo-{version}-Windows.exe or StreamGo-{version}-Windows-Portable.exe
             if (platform === "win32") {
-                return name.includes("setup") && !name.endsWith(".blockmap");
+                return name.includes("windows") && !name.includes("portable") && !name.endsWith(".blockmap");
             }
 
             // For macOS, check architecture
-            // Release naming: StreamGo-{version}.dmg (Intel) or StreamGo-{version}-arm64.dmg (ARM)
+            // Release naming: StreamGo-{version}-Mac-Intel.dmg or StreamGo-{version}-Mac-Apple-Silicon.dmg
             if (platform === "darwin") {
                 if (arch === "arm64") {
-                    return name.includes("arm64");
+                    // Apple Silicon: match "silicon" or "arm64" or "apple"
+                    return name.includes("silicon") || name.includes("arm64") || name.includes("apple");
                 } else {
-                    // Intel/x64: match .dmg that does NOT contain arm64
-                    return !name.includes("arm64");
+                    // Intel/x64: match .dmg that contains "intel" or does NOT contain arm64/silicon/apple
+                    return name.includes("intel") || (!name.includes("arm64") && !name.includes("silicon") && !name.includes("apple"));
                 }
             }
 
             // For Linux, check architecture
-            // Release naming: StreamGo-{version}.AppImage (x64) or StreamGo-{version}-arm64.AppImage (ARM)
+            // Release naming: StreamGo-{version}-Linux.AppImage or StreamGo-{version}-Linux-ARM.AppImage
             if (platform === "linux") {
                 if (arch === "arm64") {
-                    return name.includes("arm64");
+                    // ARM: match "arm64" or "-arm" in the name
+                    return name.includes("arm64") || name.includes("-arm.");
                 } else {
-                    // x64: match .AppImage that does NOT contain arm64
-                    return !name.includes("arm64");
+                    // x64: match .AppImage that does NOT contain arm
+                    return !name.includes("arm");
                 }
             }
 

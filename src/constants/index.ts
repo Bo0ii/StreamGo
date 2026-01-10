@@ -20,11 +20,12 @@ export const SELECTORS = {
     SETTINGS_CONTENT: '.settings-content-co5eU',           // Settings content panel
 
     // Enhanced (StreamGo) section - these are stable IDs we control
+    // Note: Themes category was removed (liquid-glass theme is locked), indices updated accordingly
     ENHANCED_SECTION: '#enhanced',
-    THEMES_CATEGORY: '#enhanced > div:nth-child(2)',       // Our Themes category
-    PLUGINS_CATEGORY: '#enhanced > div:nth-child(3)',      // Our Plugins category
-    TWEAKS_CATEGORY: '#enhanced > div:nth-child(4)',       // Our Tweaks category
-    ABOUT_CATEGORY: '#enhanced > div:nth-child(5)',        // Our About category
+    THEMES_CATEGORY: '#enhanced-themes-deprecated',        // DEPRECATED: Themes category removed, kept for backward compatibility
+    PLUGINS_CATEGORY: '#enhanced > div:nth-child(2)',      // Our Plugins category (after section title)
+    TWEAKS_CATEGORY: '#enhanced > div:nth-child(3)',       // Our Tweaks category
+    ABOUT_CATEGORY: '#enhanced > div:nth-child(4)',        // Our About category
 
     // Page containers
     ROUTE_CONTAINER: '.route-container:last-child .route-content',  // Active route content

@@ -92,28 +92,19 @@ jobs:
       - name: Prepare artifacts (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
-          mkdir -p prepared-artifacts
+          mkdir -p release-artifacts
 
-          # Handle Linux - move installers and yml (rename yml to include arch)
+          # Handle Linux - move installers only
           if [[ "${{ matrix.target }}" == "linux" ]]; then
             if compgen -G "release-builds/*.AppImage" > /dev/null; then
-              mv release-builds/*.AppImage prepared-artifacts/
-            fi
-            if compgen -G "release-builds/*.snap" > /dev/null; then
-              mv release-builds/*.snap prepared-artifacts/
-            fi
-            if [ -f "release-builds/latest-linux.yml" ]; then
-              mv release-builds/latest-linux.yml "prepared-artifacts/latest-linux-${{ matrix.arch }}.yml"
+              mv release-builds/*.AppImage release-artifacts/
             fi
           fi
 
-          # Handle macOS - move installers and yml (rename yml to include arch)
+          # Handle macOS - move installers only
           if [[ "${{ matrix.target }}" == "mac" ]]; then
             if compgen -G "release-builds/*.dmg" > /dev/null; then
-              mv release-builds/*.dmg prepared-artifacts/
-            fi
-            if [ -f "release-builds/latest-mac.yml" ]; then
-              mv release-builds/latest-mac.yml "prepared-artifacts/latest-mac-${{ matrix.arch }}.yml"
+              mv release-builds/*.dmg release-artifacts/
             fi
           fi
         shell: bash
@@ -122,32 +113,11 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path prepared-artifacts | Out-Null
-
-          # Move .exe installer files
-          Get-ChildItem -Path "release-builds" -Filter "*.exe" | ForEach-Object {
-              Move-Item $_.FullName -Destination "prepared-artifacts/" -Force
-          }
-          # Move latest.yml for auto-updates (rename to include arch)
-          if (Test-Path "release-builds/latest.yml") {
-              Move-Item "release-builds/latest.yml" -Destination "prepared-artifacts/latest-${{ matrix.arch }}.yml" -Force
-          }
-
-      - name: Move artifacts to release directory (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          mkdir -p release-artifacts
-          if [ -d prepared-artifacts ] && [ "$(ls -A prepared-artifacts 2>/dev/null)" ]; then
-            mv prepared-artifacts/* release-artifacts/ || true
-          fi
-
-      - name: Move artifacts to release directory (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
           New-Item -ItemType Directory -Force -Path release-artifacts | Out-Null
-          if (Test-Path "prepared-artifacts") {
-            Get-ChildItem -Path "prepared-artifacts" | Move-Item -Destination "release-artifacts" -Force
+
+          # Move .exe installer files only
+          Get-ChildItem -Path "release-builds" -Filter "*.exe" | ForEach-Object {
+              Move-Item $_.FullName -Destination "release-artifacts/" -Force
           }
 
       - name: Upload artifacts
@@ -158,7 +128,6 @@ jobs:
             release-artifacts/*.exe
             release-artifacts/*.dmg
             release-artifacts/*.AppImage
-            release-artifacts/*.yml
           if-no-files-found: ignore
 
   release:
@@ -180,20 +149,20 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           TAG_NAME="v${VERSION}"
           TIMESTAMP=$(date +'%Y%m%d%H%M%S')
-          
+
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git fetch --tags
-          
+
           # Check if tag already exists, if so append timestamp
           if git ls-remote --tags origin "$TAG_NAME" 2>/dev/null | grep -q "refs/tags/$TAG_NAME"; then
             echo "Tag $TAG_NAME already exists. Appending timestamp."
             TAG_NAME="${TAG_NAME}-${TIMESTAMP}"
           fi
-          
+
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
           echo "Creating tag: $TAG_NAME"
-          
+
           git tag $TAG_NAME
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git $TAG_NAME
 
@@ -213,106 +182,6 @@ jobs:
           echo "Files in release-artifacts:"
           ls -la release-artifacts/ || echo "Directory is empty or doesn't exist"
 
-      - name: Merge yml files from different architectures
-        run: |
-          cd release-artifacts
-          VERSION=$(node -p "require('../package.json').version")
-          RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-
-          # Function to get sha512 from yml file
-          get_sha512() {
-            grep "sha512:" "$1" | head -1 | awk '{print $2}'
-          }
-          get_size() {
-            grep "size:" "$1" | head -1 | awk '{print $2}'
-          }
-
-          # Merge macOS yml files
-          if [ -f "latest-mac-x64.yml" ] || [ -f "latest-mac-arm64.yml" ]; then
-            echo "Creating latest-mac.yml..."
-            echo "version: ${VERSION}" > latest-mac.yml
-            echo "files:" >> latest-mac.yml
-
-            if [ -f "latest-mac-x64.yml" ]; then
-              SHA512_X64=$(get_sha512 latest-mac-x64.yml)
-              SIZE_X64=$(get_size latest-mac-x64.yml)
-              echo "  - url: StreamGo-${VERSION}.dmg" >> latest-mac.yml
-              echo "    sha512: ${SHA512_X64}" >> latest-mac.yml
-              echo "    size: ${SIZE_X64}" >> latest-mac.yml
-            fi
-
-            if [ -f "latest-mac-arm64.yml" ]; then
-              SHA512_ARM64=$(get_sha512 latest-mac-arm64.yml)
-              SIZE_ARM64=$(get_size latest-mac-arm64.yml)
-              echo "  - url: StreamGo-${VERSION}-arm64.dmg" >> latest-mac.yml
-              echo "    sha512: ${SHA512_ARM64}" >> latest-mac.yml
-              echo "    size: ${SIZE_ARM64}" >> latest-mac.yml
-            fi
-
-            # Set default path (prefer x64)
-            if [ -f "latest-mac-x64.yml" ]; then
-              echo "path: StreamGo-${VERSION}.dmg" >> latest-mac.yml
-              echo "sha512: ${SHA512_X64}" >> latest-mac.yml
-            else
-              echo "path: StreamGo-${VERSION}-arm64.dmg" >> latest-mac.yml
-              echo "sha512: ${SHA512_ARM64}" >> latest-mac.yml
-            fi
-            echo "releaseDate: '${RELEASE_DATE}'" >> latest-mac.yml
-
-            rm -f latest-mac-x64.yml latest-mac-arm64.yml
-            echo "Created latest-mac.yml:"
-            cat latest-mac.yml
-          fi
-
-          # Merge Linux yml files
-          if [ -f "latest-linux-x64.yml" ] || [ -f "latest-linux-arm64.yml" ]; then
-            echo "Creating latest-linux.yml..."
-            echo "version: ${VERSION}" > latest-linux.yml
-            echo "files:" >> latest-linux.yml
-
-            if [ -f "latest-linux-x64.yml" ]; then
-              SHA512_X64=$(get_sha512 latest-linux-x64.yml)
-              SIZE_X64=$(get_size latest-linux-x64.yml)
-              echo "  - url: StreamGo-${VERSION}.AppImage" >> latest-linux.yml
-              echo "    sha512: ${SHA512_X64}" >> latest-linux.yml
-              echo "    size: ${SIZE_X64}" >> latest-linux.yml
-            fi
-
-            if [ -f "latest-linux-arm64.yml" ]; then
-              SHA512_ARM64=$(get_sha512 latest-linux-arm64.yml)
-              SIZE_ARM64=$(get_size latest-linux-arm64.yml)
-              echo "  - url: StreamGo-${VERSION}-arm64.AppImage" >> latest-linux.yml
-              echo "    sha512: ${SHA512_ARM64}" >> latest-linux.yml
-              echo "    size: ${SIZE_ARM64}" >> latest-linux.yml
-            fi
-
-            if [ -f "latest-linux-x64.yml" ]; then
-              echo "path: StreamGo-${VERSION}.AppImage" >> latest-linux.yml
-              echo "sha512: ${SHA512_X64}" >> latest-linux.yml
-            else
-              echo "path: StreamGo-${VERSION}-arm64.AppImage" >> latest-linux.yml
-              echo "sha512: ${SHA512_ARM64}" >> latest-linux.yml
-            fi
-            echo "releaseDate: '${RELEASE_DATE}'" >> latest-linux.yml
-
-            rm -f latest-linux-x64.yml latest-linux-arm64.yml
-            echo "Created latest-linux.yml:"
-            cat latest-linux.yml
-          fi
-
-          # Windows yml (x64 is primary)
-          if [ -f "latest-x64.yml" ]; then
-            mv latest-x64.yml latest.yml
-            echo "Created latest.yml from x64"
-          elif [ -f "latest-arm64.yml" ]; then
-            mv latest-arm64.yml latest.yml
-            echo "Created latest.yml from arm64"
-          fi
-          rm -f latest-arm64.yml 2>/dev/null || true
-
-          echo "Final yml files:"
-          ls -la *.yml 2>/dev/null || echo "No yml files found"
-
       - name: Rename artifacts to user-friendly names
         run: |
           cd release-artifacts
@@ -320,71 +189,36 @@ jobs:
 
           echo "Renaming artifacts to user-friendly names..."
 
-          # Mac DMG files
+          # Mac DMG files - use underscores to avoid URL encoding issues
           for f in *-arm64.dmg; do
-            [ -f "$f" ] && mv "$f" "StreamGo ${VERSION} (Mac Apple Silicon).dmg"
+            [ -f "$f" ] && mv "$f" "StreamGo-${VERSION}-Mac-Apple-Silicon.dmg"
           done
           for f in *.dmg; do
-            [[ -f "$f" && ! "$f" =~ "Apple Silicon" ]] && mv "$f" "StreamGo ${VERSION} (Mac Intel).dmg" 2>/dev/null || true
+            [[ -f "$f" && ! "$f" =~ "Apple-Silicon" ]] && mv "$f" "StreamGo-${VERSION}-Mac-Intel.dmg" 2>/dev/null || true
           done
 
           # Windows EXE files - Setup installer
           for f in *Setup*.exe; do
-            [ -f "$f" ] && mv "$f" "StreamGo ${VERSION} (Windows).exe"
+            [ -f "$f" ] && mv "$f" "StreamGo-${VERSION}-Windows.exe"
           done
           # Windows portable
           for f in *.exe; do
-            [[ -f "$f" && ! "$f" =~ "Windows" ]] && mv "$f" "StreamGo ${VERSION} (Windows Portable).exe" 2>/dev/null || true
+            [[ -f "$f" && ! "$f" =~ "Windows" ]] && mv "$f" "StreamGo-${VERSION}-Windows-Portable.exe" 2>/dev/null || true
           done
 
           # Linux AppImage files
           for f in *-arm64.AppImage; do
-            [ -f "$f" ] && mv "$f" "StreamGo ${VERSION} (Linux ARM).AppImage"
+            [ -f "$f" ] && mv "$f" "StreamGo-${VERSION}-Linux-ARM.AppImage"
           done
           for f in *.AppImage; do
-            [[ -f "$f" && ! "$f" =~ "ARM" ]] && mv "$f" "StreamGo ${VERSION} (Linux).AppImage" 2>/dev/null || true
+            [[ -f "$f" && ! "$f" =~ "ARM" ]] && mv "$f" "StreamGo-${VERSION}-Linux.AppImage" 2>/dev/null || true
           done
 
-          # Remove blockmap files (only needed for auto-updates, not manual downloads)
+          # Remove blockmap files
           rm -f *.blockmap
 
           echo "Renamed files:"
           ls -la
-
-      - name: Update yml files with new filenames
-        run: |
-          cd release-artifacts
-          VERSION=$(node -p "require('../package.json').version")
-
-          # Update latest-mac.yml for macOS auto-updates
-          if [ -f "latest-mac.yml" ]; then
-            echo "Updating latest-mac.yml..."
-            # Update arm64 entries
-            sed -i "s|StreamGo-${VERSION}-arm64.dmg|StreamGo ${VERSION} (Mac Apple Silicon).dmg|g" latest-mac.yml
-            # Update x64 entries
-            sed -i "s|StreamGo-${VERSION}.dmg|StreamGo ${VERSION} (Mac Intel).dmg|g" latest-mac.yml
-            cat latest-mac.yml
-          fi
-
-          # Update latest.yml for Windows auto-updates
-          if [ -f "latest.yml" ]; then
-            echo "Updating latest.yml..."
-            # Update Setup exe
-            sed -i "s|StreamGo Setup ${VERSION}.exe|StreamGo ${VERSION} (Windows).exe|g" latest.yml
-            # Update portable exe
-            sed -i "s|StreamGo ${VERSION}.exe|StreamGo ${VERSION} (Windows Portable).exe|g" latest.yml
-            cat latest.yml
-          fi
-
-          # Update latest-linux.yml for Linux auto-updates
-          if [ -f "latest-linux.yml" ]; then
-            echo "Updating latest-linux.yml..."
-            # Update arm64 entries
-            sed -i "s|StreamGo-${VERSION}-arm64.AppImage|StreamGo ${VERSION} (Linux ARM).AppImage|g" latest-linux.yml
-            # Update x64 entries
-            sed -i "s|StreamGo-${VERSION}.AppImage|StreamGo ${VERSION} (Linux).AppImage|g" latest-linux.yml
-            cat latest-linux.yml
-          fi
 
       - name: Generate checksums
         run: |
@@ -423,7 +257,6 @@ jobs:
             release-artifacts/*.exe
             release-artifacts/*.dmg
             release-artifacts/*.AppImage
-            release-artifacts/*.yml
             release-artifacts/SHA256SUMS.txt
           fail_on_unmatched_files: false
         env:
