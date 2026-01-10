@@ -7,6 +7,10 @@ on:
       - master
   workflow_dispatch:
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build ${{ matrix.target }} - ${{ matrix.arch }}
@@ -210,10 +214,28 @@ jobs:
           echo "Generated checksums:"
           cat SHA256SUMS.txt
 
+      - name: Check if beta release
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *"beta"* ]] || [[ "$VERSION" == *"alpha"* ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Delete existing release if present
+        run: |
+          # Delete the release if it already exists (to handle retries)
+          gh release delete "${{ env.TAG_NAME }}" --yes 2>/dev/null || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.TAG_NAME }}
+          prerelease: ${{ env.IS_PRERELEASE }}
+          generate_release_notes: true
           files: |
             release-artifacts/*.exe
             release-artifacts/*.blockmap
