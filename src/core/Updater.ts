@@ -5,6 +5,14 @@ import { join } from "path";
 import { getUpdateModalTemplate } from "../components/update-modal/updateModal";
 import { URLS } from "../constants";
 
+// Try to import app, but handle if we're in renderer process
+let app: typeof import("electron").app | undefined;
+try {
+    app = require("electron").app;
+} catch {
+    // app is not available in renderer process
+}
+
 class Updater {
     private static logger = getLogger("Updater");
     private static versionCache: string | null = null;
@@ -83,16 +91,72 @@ class Updater {
             return this.versionCache;
         }
         
-        try {
-            this.versionCache = readFileSync(
-                join(__dirname, "../", "../", "version"), 
-                "utf-8"
-            ).trim();
-            return this.versionCache;
-        } catch (error) {
-            this.logger.error(`Failed to read version file: ${(error as Error).message}`);
-            return "0.0.0";
+        const isPackaged = app ? app.isPackaged : false;
+        
+        // Try multiple paths to find package.json or version file
+        const pathsToTry: string[] = [];
+        
+        if (isPackaged && app) {
+            // In packaged app, try different locations
+            if (process.resourcesPath) {
+                pathsToTry.push(join(process.resourcesPath, "app.asar", "package.json"));
+                pathsToTry.push(join(process.resourcesPath, "package.json"));
+            }
+            if (app.getAppPath) {
+                pathsToTry.push(join(app.getAppPath(), "package.json"));
+            }
+        } else {
+            // In development, it's relative to __dirname
+            pathsToTry.push(join(__dirname, "../", "../", "package.json"));
         }
+        
+        // Try to read from package.json first
+        for (const packageJsonPath of pathsToTry) {
+            try {
+                const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+                if (packageJson.version) {
+                    this.versionCache = packageJson.version;
+                    this.logger.info(`Version read from package.json: v${this.versionCache}`);
+                    return this.versionCache;
+                }
+            } catch (error) {
+                // Try next path
+                continue;
+            }
+        }
+        
+        // Fallback: try to read from version file
+        const versionPathsToTry: string[] = [];
+        
+        if (isPackaged && app) {
+            if (process.resourcesPath) {
+                versionPathsToTry.push(join(process.resourcesPath, "app.asar", "dist", "version"));
+                versionPathsToTry.push(join(process.resourcesPath, "version"));
+            }
+            if (app.getAppPath) {
+                versionPathsToTry.push(join(app.getAppPath(), "dist", "version"));
+                versionPathsToTry.push(join(app.getAppPath(), "version"));
+            }
+        } else {
+            versionPathsToTry.push(join(__dirname, "../", "version"));
+            versionPathsToTry.push(join(__dirname, "../", "../", "version"));
+        }
+        
+        for (const versionFilePath of versionPathsToTry) {
+            try {
+                this.versionCache = readFileSync(versionFilePath, "utf-8").trim();
+                this.logger.info(`Version read from version file: v${this.versionCache}`);
+                return this.versionCache;
+            } catch (error) {
+                // Try next path
+                continue;
+            }
+        }
+        
+        // Last resort: return 0.0.0
+        this.logger.error("Failed to read version from any location. Using default: 0.0.0");
+        this.versionCache = "0.0.0";
+        return this.versionCache;
     }
 
     /**

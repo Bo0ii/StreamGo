@@ -266,7 +266,11 @@ async function createWindow() {
 async function useStremioService() {
     if(await StremioService.isServiceInstalled()) {
         logger.info("Found installation of Stremio Service.");
-        await StremioService.start();
+        try {
+            await StremioService.start();
+        } catch (err) {
+            logger.error(`Failed to start Stremio Service: ${(err as Error).message}`);
+        }
     } else {
         const result = await Helpers.showAlert(
             "warning",
@@ -275,7 +279,23 @@ async function useStremioService() {
             ["YES", "NO"]
         );
         if (result === 0) {
-            await StremioService.downloadAndInstallService();
+            logger.info("User chose to download Stremio Service. Starting download...");
+            const success = await StremioService.downloadAndInstallService();
+            if (success) {
+                await Helpers.showAlert(
+                    "info",
+                    "Installation Successful",
+                    "Stremio Service has been installed and started successfully. Streaming features are now available.",
+                    ["OK"]
+                );
+            } else {
+                await Helpers.showAlert(
+                    "error",
+                    "Installation Failed",
+                    "Failed to install Stremio Service. Please try again or install it manually from https://github.com/Stremio/stremio-service/releases",
+                    ["OK"]
+                );
+            }
         } else {
             logger.info("User declined to download Stremio Service.");
         }
@@ -327,6 +347,8 @@ app.on("ready", async () => {
                         logger.error(`Failed to auto-start Stremio Service: ${(err as Error).message}`);
                     }
                 } else if(existsSync(useStremioServiceFlagPath)) {
+                    // User previously chose Stremio Service but it's not installed - show popup again
+                    logger.info("Stremio Service was previously selected but is not installed. Showing installation prompt...");
                     await useStremioService();
                 } else if(existsSync(useServerJSFlagPath)) {
                     await useServerJS();
@@ -342,10 +364,12 @@ app.on("ready", async () => {
                         await StremioService.start();
                     } catch (err) {
                         logger.error(`Failed to auto-start Stremio Service: ${(err as Error).message}`);
-                        await useServerJS();
+                        // Service exists but failed to start - show popup to reinstall
+                        await useStremioService();
                     }
                 } else {
-                    await useServerJS();
+                    // Service not installed - show popup to install
+                    await useStremioService();
                 }
             }
         } else logger.info("Stremio Service is already running.");

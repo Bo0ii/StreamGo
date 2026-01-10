@@ -61,41 +61,58 @@ class StremioService {
         });
     }
         
-    public static async downloadAndInstallService() {
+    public static async downloadAndInstallService(): Promise<boolean> {
         const platform = process.platform;
         
-        const release = await this.fetchLatestRelease();
-        if (!release) {
-            this.logger.error("Failed to fetch latest release info");
-            return;
-        }
+        try {
+            const release = await this.fetchLatestRelease();
+            if (!release) {
+                this.logger.error("Failed to fetch latest release info");
+                return false;
+            }
 
-        const assetUrl = this.getAssetUrlForPlatform(release, platform);
-        if (!assetUrl) {
-            this.logger.error("No suitable asset found for platform: " + platform);
-            return;
-        }
-        
-        const tempDir = app.getPath("temp");
-        const fileName = basename(assetUrl);
-        const destPath = join(tempDir, fileName);
+            const assetUrl = this.getAssetUrlForPlatform(release, platform);
+            if (!assetUrl) {
+                this.logger.error("No suitable asset found for platform: " + platform);
+                return false;
+            }
+            
+            const tempDir = app.getPath("temp");
+            const fileName = basename(assetUrl);
+            const destPath = join(tempDir, fileName);
 
-        this.logger.info(`Downloading latest Stremio Service (${release.tag_name}) in ${destPath}`);
-        await this.downloadFile(assetUrl, destPath);
-        this.logger.info("Download complete. Installing...");
+            this.logger.info(`Downloading latest Stremio Service (${release.tag_name}) in ${destPath}`);
+            await this.downloadFile(assetUrl, destPath);
+            this.logger.info("Download complete. Installing...");
 
-        switch (platform) {
-            case "win32":
-                await this.installWindows(destPath);
-            break;
-            case "darwin":
-                await this.installMac(destPath);
-            break;
-            case "linux":
-                await this.installLinux(destPath);
-            break;
-            default:
-                this.logger.warn("No install routine defined for: " + platform);
+            switch (platform) {
+                case "win32":
+                    await this.installWindows(destPath);
+                    break;
+                case "darwin":
+                    await this.installMac(destPath);
+                    break;
+                case "linux":
+                    await this.installLinux(destPath);
+                    break;
+                default:
+                    this.logger.warn("No install routine defined for: " + platform);
+                    return false;
+            }
+            
+            // Verify installation was successful
+            const installed = await this.isServiceInstalled();
+            if (installed) {
+                this.logger.info("Stremio Service installed successfully. Starting service...");
+                await this.start();
+                return true;
+            } else {
+                this.logger.warn("Installation completed but service not detected as installed.");
+                return false;
+            }
+        } catch (error) {
+            this.logger.error(`Failed to download and install Stremio Service: ${(error as Error).message}`);
+            return false;
         }
     }
     

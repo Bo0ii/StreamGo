@@ -24,15 +24,35 @@ function copyFiles(srcDir, destDir) {
     });
 }
 
-// Copy the 'version' file from the root directory
-const versionFileSrc = path.join(__dirname, 'version');
+// Generate version file from package.json (or copy existing if it exists and matches)
+const packageJsonPath = path.join(__dirname, 'package.json');
 const versionFileDest = path.join(__dirname, 'dist', 'version');
 
-if (fs.existsSync(versionFileSrc)) {
-    fs.copyFileSync(versionFileSrc, versionFileDest);
-    console.log(`Copied: ${versionFileSrc} to ${versionFileDest}`);
+if (fs.existsSync(packageJsonPath)) {
+    try {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+        if (packageJson.version) {
+            // Write version to dist/version
+            fs.writeFileSync(versionFileDest, packageJson.version, 'utf-8');
+            console.log(`Generated version file from package.json: ${packageJson.version}`);
+            
+            // Also update root version file if it exists (or create it)
+            const rootVersionFile = path.join(__dirname, 'version');
+            fs.writeFileSync(rootVersionFile, packageJson.version, 'utf-8');
+        }
+    } catch (error) {
+        console.error(`Failed to read version from package.json: ${error.message}`);
+        // Fallback: copy existing version file if it exists
+        const versionFileSrc = path.join(__dirname, 'version');
+        if (fs.existsSync(versionFileSrc)) {
+            fs.copyFileSync(versionFileSrc, versionFileDest);
+            console.log(`Copied existing version file: ${versionFileSrc} to ${versionFileDest}`);
+        } else {
+            console.log('No version file found and failed to read from package.json.');
+        }
+    }
 } else {
-    console.log('No version file found in the root directory.');
+    console.log('No package.json found in the root directory.');
 }
 
 const srcDir = 'src/components';
