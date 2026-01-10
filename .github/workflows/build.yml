@@ -223,19 +223,22 @@ jobs:
             echo "IS_PRERELEASE=false" >> $GITHUB_ENV
           fi
 
-      - name: Delete existing release if present
+      - name: Delete existing release and tag if present
         run: |
           # Delete the release if it already exists (to handle retries)
-          gh release delete "${{ env.TAG_NAME }}" --yes 2>/dev/null || true
+          gh release delete "${{ env.TAG_NAME }}" --yes --cleanup-tag 2>/dev/null || true
+          # Wait a moment to ensure GitHub processes the deletion
+          sleep 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
           prerelease: ${{ env.IS_PRERELEASE }}
           generate_release_notes: true
+          make_latest: ${{ env.IS_PRERELEASE == 'false' }}
           files: |
             release-artifacts/*.exe
             release-artifacts/*.blockmap
