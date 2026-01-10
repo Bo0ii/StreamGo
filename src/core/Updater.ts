@@ -114,10 +114,11 @@ class Updater {
         for (const packageJsonPath of pathsToTry) {
             try {
                 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
-                if (packageJson.version) {
-                    this.versionCache = packageJson.version;
-                    this.logger.info(`Version read from package.json: v${this.versionCache}`);
-                    return this.versionCache;
+                if (packageJson.version && typeof packageJson.version === 'string') {
+                    const version = packageJson.version as string;
+                    this.versionCache = version;
+                    this.logger.info(`Version read from package.json: v${version}`);
+                    return version;
                 }
             } catch (error) {
                 // Try next path
@@ -144,9 +145,10 @@ class Updater {
         
         for (const versionFilePath of versionPathsToTry) {
             try {
-                this.versionCache = readFileSync(versionFilePath, "utf-8").trim();
-                this.logger.info(`Version read from version file: v${this.versionCache}`);
-                return this.versionCache;
+                const version = readFileSync(versionFilePath, "utf-8").trim();
+                this.versionCache = version;
+                this.logger.info(`Version read from version file: v${version}`);
+                return version;
             } catch (error) {
                 // Try next path
                 continue;
