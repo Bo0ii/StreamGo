@@ -5,6 +5,7 @@ import { STORAGE_KEYS, SELECTORS, CLASSES, PLAYER_DEFAULTS } from '../../constan
 
 export function getTweaksCategoryTemplate(
 	fullHeightBackground: boolean,
+	performanceMode: boolean,
 	hidePosterHover: boolean,
 	hideContextDots: boolean,
 	roundedPosters: boolean,
@@ -18,6 +19,7 @@ export function getTweaksCategoryTemplate(
 
 	return template
 		.replace("{{ fullHeightBackground }}", fullHeightBackground ? "checked" : "")
+		.replace("{{ performanceMode }}", performanceMode ? "checked" : "")
 		.replace("{{ hidePosterHover }}", hidePosterHover ? "checked" : "")
 		.replace("{{ hideContextDots }}", hideContextDots ? "checked" : "")
 		.replace("{{ roundedPosters }}", roundedPosters ? "checked" : "")
@@ -37,6 +39,7 @@ export function getTweaksIcon(): string {
 export function writeTweaks(): void {
 	Helpers.waitForElm(SELECTORS.TWEAKS_CATEGORY).then(() => {
 		const fullHeightBackground = localStorage.getItem(STORAGE_KEYS.FULL_HEIGHT_BACKGROUND) === 'true';
+		const performanceMode = localStorage.getItem(STORAGE_KEYS.PERFORMANCE_MODE) === 'true';
 		const hidePosterHover = localStorage.getItem(STORAGE_KEYS.HIDE_POSTER_HOVER) === 'true';
 		const hideContextDots = localStorage.getItem(STORAGE_KEYS.HIDE_CONTEXT_DOTS) === 'true';
 		const roundedPosters = localStorage.getItem(STORAGE_KEYS.ROUNDED_POSTERS) === 'true';
@@ -56,6 +59,7 @@ export function writeTweaks(): void {
 		if (tweaksCategory) {
 			tweaksCategory.innerHTML += getTweaksCategoryTemplate(
 				fullHeightBackground,
+				performanceMode,
 				hidePosterHover,
 				hideContextDots,
 				roundedPosters,
@@ -70,6 +74,20 @@ export function writeTweaks(): void {
 }
 
 export function setupTweaksControls(): void {
+	// Performance mode toggle
+	Helpers.waitForElm('#performanceModeToggle').then(() => {
+		const toggle = document.getElementById('performanceModeToggle');
+		if (!toggle || toggle.hasAttribute('data-handler-attached')) return;
+		toggle.setAttribute('data-handler-attached', 'true');
+		toggle.addEventListener('click', () => {
+			toggle.classList.toggle(CLASSES.CHECKED);
+			const isChecked = toggle.classList.contains(CLASSES.CHECKED);
+			logger.info(`Performance mode toggled ${isChecked ? "ON" : "OFF"}`);
+			localStorage.setItem(STORAGE_KEYS.PERFORMANCE_MODE, isChecked ? "true" : "false");
+			applyPerformanceMode(isChecked);
+		});
+	}).catch(err => logger.warn("Performance mode toggle not found: " + err));
+
 	// Full height background toggle
 	Helpers.waitForElm('#fullHeightBackgroundToggle').then(() => {
 		const toggle = document.getElementById('fullHeightBackgroundToggle');
@@ -224,6 +242,23 @@ function applySubtitleStyleFromSettings(): void {
 			font-size: ${fontSize}px !important;
 		}
 	`;
+}
+
+// Apply performance mode - adds body class for CSS optimizations
+export function applyPerformanceMode(enabled: boolean): void {
+	if (enabled) {
+		document.body.classList.add('performance-mode-enabled');
+		logger.info('Performance mode enabled - blur effects disabled, animations simplified');
+	} else {
+		document.body.classList.remove('performance-mode-enabled');
+		logger.info('Performance mode disabled - full visual effects restored');
+	}
+}
+
+// Initialize performance mode on page load
+export function initPerformanceMode(): void {
+	const performanceMode = localStorage.getItem(STORAGE_KEYS.PERFORMANCE_MODE) === 'true';
+	applyPerformanceMode(performanceMode);
 }
 
 export function applyTweaks(): void {

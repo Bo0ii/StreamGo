@@ -161,10 +161,11 @@ class SystemTray {
      * Start periodic status updates
      */
     private static startStatusUpdates(): void {
-        // Update every 5 seconds
+        // Update every 30 seconds (reduced from 5s for better performance)
+        // Context menu only needs updating occasionally, not constantly
         this.updateInterval = setInterval(async () => {
             await this.updateContextMenu();
-        }, 5000);
+        }, 30000);
 
         // Initial update
         this.updateContextMenu();

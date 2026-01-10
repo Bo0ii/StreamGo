@@ -896,14 +896,7 @@
         characterData: false
     });
 
-    setInterval(() => {
-        const heroExists = document.querySelector('.hero-container');
-        const shouldShow = shouldShowHero();
-        
-        if (shouldShow && !heroExists && !heroState.isInitializing && !document.getElementById('heroLoadingScreen')) {
-            addHeroDiv();
-        }
-    }, 3000);
+    // MutationObserver handles DOM changes - removed redundant 3s polling interval
 
     setTimeout(() => {
         handleNavigation();

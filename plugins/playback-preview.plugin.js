@@ -710,8 +710,7 @@
         // Setup global popup hover handling
         setupPopupHoverHandling();
 
-        // Periodic check for dynamically loaded content
-        setInterval(processAllCards, 5000);
+        // MutationObserver handles dynamic content - removed redundant 5s polling
 
         // Clean up on navigation
         window.addEventListener('hashchange', () => {

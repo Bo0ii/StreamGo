@@ -68,6 +68,7 @@ export const STORAGE_KEYS = {
     ACCENT_COLOR: 'accentColor',
     DARK_MODE: 'darkMode',
     FULL_HEIGHT_BACKGROUND: 'fullHeightBackground',
+    PERFORMANCE_MODE: 'performanceMode',
     HIDE_POSTER_HOVER: 'hidePosterHover',
     HIDE_CONTEXT_DOTS: 'hideContextDots',
     ROUNDED_POSTERS: 'roundedPosters',

@@ -45,12 +45,15 @@ function isModernMac(): boolean {
     }
 }
 
-const useAggressiveGpuFlags = process.platform === "win32" || isModernMac();
+const useAggressiveGpuFlags = process.platform === "win32" || isModernMac() || process.platform === "linux";
 
 // Platform-specific rendering backend
 if (process.platform === "darwin") {
     logger.info(`Running on macOS (${isModernMac() ? "Apple Silicon" : "Intel"}), using Metal for rendering`);
     app.commandLine.appendSwitch('use-angle', 'metal');
+    // macOS-specific scroll and compositing optimizations
+    app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar,MetalCompositor');
+    app.commandLine.appendSwitch('enable-smooth-scrolling');
 } else if (process.platform === "win32") {
     logger.info("Running on Windows, using D3D11 for rendering");
     app.commandLine.appendSwitch('use-angle', 'd3d11');
@@ -64,12 +67,16 @@ app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('disable-software-rasterizer');
 
-// High-refresh optimizations - only on Windows or modern Macs (Apple Silicon)
+// High-refresh optimizations - Windows, modern Macs (Apple Silicon), and Linux
 if (useAggressiveGpuFlags) {
     app.commandLine.appendSwitch('force-high-performance-gpu');
     // Unlock frame rate for high refresh rate displays (144Hz+)
     app.commandLine.appendSwitch('disable-frame-rate-limit');
-    app.commandLine.appendSwitch('disable-gpu-vsync');
+    // V-sync: Keep enabled on macOS for smooth ProMotion display frame delivery
+    // Disable on Windows/Linux for lower input latency
+    if (process.platform !== 'darwin') {
+        app.commandLine.appendSwitch('disable-gpu-vsync');
+    }
 }
 
 // Safe rendering pipeline optimizations (all platforms)

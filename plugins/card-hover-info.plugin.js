@@ -220,8 +220,7 @@
             subtree: true
         });
 
-        // Periodic check for dynamically loaded content
-        setInterval(processPosters, 4000);
+        // MutationObserver handles dynamic content - removed redundant 4s polling
 
         console.log('[Card Hover Info] Ready!');
     }

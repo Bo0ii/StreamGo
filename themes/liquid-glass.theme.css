@@ -10,8 +10,28 @@
 
 * {
   font-family: 'Inter', sans-serif !important;
+  /* Thin overlay scrollbar - macOS style */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
 
-  scrollbar-width: none;
+/* WebKit scrollbar - thin macOS style */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* change the accent color from purple to white */
@@ -43,13 +63,25 @@
 }
 
 /* ========================= SCROLL PERFORMANCE OPTIMIZATIONS ========================= */
+/* Optimized for 120Hz ProMotion displays - native macOS feel */
 
-/* Enable smooth native scrolling */
+/* Native momentum scrolling - don't use CSS smooth-scroll, let the OS handle it */
 html {
-  scroll-behavior: smooth !important;
+  scroll-behavior: auto !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
 }
 
-/* GPU-accelerated scrollable containers with enhanced performance */
+/* macOS-style easing curve - mimics native spring physics */
+:root {
+  --mac-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --mac-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --mac-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-fast: 100ms;
+  --transition-normal: 150ms;
+}
+
+/* GPU-accelerated scrollable containers with native momentum */
 [class*="meta-items-container"],
 [class*="board-content-container"],
 [class*="discover-content"],
@@ -64,10 +96,27 @@ html {
   -webkit-transform: translate3d(0, 0, 0) !important;
   backface-visibility: hidden !important;
   -webkit-backface-visibility: hidden !important;
+  /* Native macOS momentum scrolling */
   -webkit-overflow-scrolling: touch !important;
-  contain: layout style paint !important;
+  overflow-scrolling: touch !important;
+  /* Scroll snapping for smoother feel */
+  scroll-snap-type: y proximity !important;
+  contain: layout style !important;
+}
+
+/* Scroll snap alignment for rows */
+[class*="board-row"],
+[class*="meta-row"] {
+  scroll-snap-align: start !important;
+  scroll-margin-top: 20px !important;
+}
+
+/* Only apply will-change during scroll to reduce GPU memory when idle */
+body.scrolling-active [class*="meta-items-container"],
+body.scrolling-active [class*="board-content-container"],
+body.scrolling-active [class*="discover-content"],
+body.scrolling-active [class*="library-content"] {
   will-change: scroll-position !important;
-  scroll-behavior: smooth !important;
 }
 
 /* Contain layout for poster items - prevents paint propagation */
@@ -100,18 +149,30 @@ html {
   will-change: auto !important;
 }
 
-/* Optimize transitions for GPU - only transform and opacity with faster timing */
+/* Optimize transitions for GPU - macOS-native 120fps feel */
 [class*="meta-item"],
 [class*="poster-container"],
 [class*="nav-tab-button"],
 [class*="action-button"] {
   transition-property: transform, opacity !important;
-  transition-duration: 0.15s !important;
-  transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  transition-duration: var(--transition-fast) !important;
+  transition-timing-function: var(--mac-ease-out) !important;
   transform: translate3d(0, 0, 0) !important;
   -webkit-transform: translate3d(0, 0, 0) !important;
   backface-visibility: hidden !important;
   -webkit-backface-visibility: hidden !important;
+}
+
+/* Smoother hover scale effect - native macOS spring feel */
+[class*="meta-item-container"]:hover [class*="poster-container"] {
+  transform: translate3d(0, 0, 0) scale3d(1.03, 1.03, 1) !important;
+  transition-timing-function: var(--mac-spring) !important;
+}
+
+/* Instant visual feedback on press */
+[class*="meta-item-container"]:active [class*="poster-container"] {
+  transform: translate3d(0, 0, 0) scale3d(0.98, 0.98, 1) !important;
+  transition-duration: 50ms !important;
 }
 
 /* Keep horizontal nav bar blur consistent during scroll (no performance reduction) */
@@ -130,8 +191,17 @@ body.performance-mode [style*="backdrop-filter"]:not([class*="background-image-l
 body.performance-mode [class*="backdrop-filter"]:not([class*="background-image-layer"]),
 body.performance-mode [class*="meta-item-container"] *::before,
 body.performance-mode [class*="poster-container"] *::before {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  backdrop-filter: blur(2px) !important;
+  -webkit-backdrop-filter: blur(2px) !important;
+  transition: backdrop-filter 0.1s ease-out !important;
+}
+
+/* Isolate backdrop-filter elements into their own compositor layers for better GPU handling */
+[class*="horizontal-nav-bar-container"]::before,
+[class*="side-drawer"],
+[class*="background-image-layer"] {
+  contain: strict !important;
+  isolation: isolate !important;
 }
 
 /* PERFORMANCE: Disable blur on title bar during scroll (but NOT horizontal nav bar) */
@@ -249,8 +319,8 @@ body.performance-mode [class*="background-image-layer"] *,
 body.performance-mode [class*="background-image-layer"] img {
   filter: blur(10px) !important;
   -webkit-filter: blur(10px) !important;
-  backdrop-filter: blur(10px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
 }
 
 /* ULTRA 200FPS: Force GPU compositing layer with opacity trick */
@@ -433,8 +503,8 @@ nav.horizontal-nav-bar-ji5GB::before,
         rgba(15, 15, 15, 0.1) 60%,
         transparent 100%) !important;
     /* Consistent blur - SAME for scroll and idle */
-    backdrop-filter: blur(10px) saturate(130%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
     /* Smooth gradient mask */
     mask-image: linear-gradient(to bottom,
         black 0%,
@@ -486,8 +556,8 @@ nav.horizontal-nav-bar-ji5GB::before,
         rgba(15, 15, 15, 0.1) 60%,
         transparent 100%) !important;
     /* Consistent blur - SAME for scroll and idle */
-    backdrop-filter: blur(10px) saturate(130%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
     /* Smooth gradient mask */
     mask-image: linear-gradient(to bottom,
         black 0%,
@@ -1312,6 +1382,34 @@ nav[class*="horizontal-nav-bar"] [class*="buttons-container-Oc5z1"] {
     justify-content: center !important;
 }
 
+/* PERFORMANCE: Pause all animations when loading screen is hidden */
+#heroLoadingScreen[style*="display: none"],
+#heroLoadingScreen[style*="visibility: hidden"],
+#heroLoadingScreen[style*="opacity: 0"],
+#heroLoadingScreen.hidden,
+#heroLoadingScreen.fade-out {
+    animation-play-state: paused !important;
+}
+
+#heroLoadingScreen[style*="display: none"] *,
+#heroLoadingScreen[style*="visibility: hidden"] *,
+#heroLoadingScreen[style*="opacity: 0"] *,
+#heroLoadingScreen.hidden *,
+#heroLoadingScreen.fade-out * {
+    animation-play-state: paused !important;
+    will-change: auto !important;
+}
+
+/* Respect user's reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+    .loading-backdrop,
+    .loading-logo,
+    .loading-pulse,
+    .loading-progress::after {
+        animation: none !important;
+    }
+}
+
 .loading-backdrop {
     position: absolute;
     top: 0;
@@ -1466,17 +1564,18 @@ body.ghost-clicking #heroLoadingScreen {
   position: relative !important;
 }
 
-/* Enhanced nav button base styling with smooth transitions */
+/* Enhanced nav button base styling with macOS-native transitions */
 #app [class*="nav-tab-button-container"] {
   position: relative !important;
   overflow: hidden !important;
-  transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  transition: transform var(--transition-fast) var(--mac-ease-out),
+              opacity var(--transition-fast) var(--mac-ease-out),
+              background var(--transition-fast) var(--mac-ease-out) !important;
   border-radius: 999px !important;
   transform: translate3d(0, 0, 0) !important;
   -webkit-transform: translate3d(0, 0, 0) !important;
   backface-visibility: hidden !important;
   -webkit-backface-visibility: hidden !important;
-  will-change: transform !important;
 }
 
 /* Smooth hover effects for non-selected tabs - simplified to prevent blur issues */
@@ -1750,8 +1849,8 @@ body.performance-mode .meta-item-container-Tj0Ib .poster-container-qkw48:hover::
 .meta-item-container-Tj0Ib .poster-container-qkw48:hover .play-icon-layer-vpQIo .play-icon-outer-r3iKR {
     background: rgba(255, 255, 255, 0.45) !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
-    backdrop-filter: blur(10px) saturate(140%) brightness(105%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(140%) brightness(105%) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
     border: 1.5px solid rgba(255, 255, 255, 0.5) !important;
     /* Only scale, no translate since parent is already centered */
     transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
@@ -2142,8 +2241,8 @@ body.performance-mode .meta-item-container-Tj0Ib .poster-container-qkw48:hover .
 [class*="multiselect"] [class*="dropdown"] {
     background: rgba(30, 30, 30, 0.92) !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
-    backdrop-filter: blur(10px) saturate(130%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
     border-radius: 12px !important;
 }
@@ -2179,8 +2278,8 @@ body.performance-mode .meta-item-container-Tj0Ib .poster-container-qkw48:hover .
 .open-yuN4f,
 [class*="open"] {
     background: rgba(30, 30, 30, 0.92) !important;
-    backdrop-filter: blur(10px) saturate(130%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
 }
 
 .search-bar-container-p4tSt {
@@ -2251,8 +2350,8 @@ body.performance-mode .meta-item-container-Tj0Ib .poster-container-qkw48:hover .
 .side-drawer-r9EuA.side-drawer-layer-CZtJ1,
 [class*="side-drawer"][class*="side-drawer-layer"] {
     background: rgba(20, 20, 20, 0.85) !important;
-    backdrop-filter: blur(10px) saturate(130%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
     border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
     box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3) !important;
 }
@@ -2262,8 +2361,8 @@ body.scrolling-active [class*="side-drawer"],
 body.performance-mode [class*="side-drawer"],
 body.scrolling-active .side-drawer-r9EuA.side-drawer-layer-CZtJ1,
 body.performance-mode .side-drawer-r9EuA.side-drawer-layer-CZtJ1 {
-    backdrop-filter: blur(10px) saturate(130%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
 }
 
 /* Close button - glass style */
@@ -2482,4 +2581,94 @@ body.performance-mode .side-drawer-r9EuA.side-drawer-layer-CZtJ1 {
     align-items: center !important;
     justify-content: center !important;
     margin-bottom: 20px !important;
+}
+
+/* ========================= PERFORMANCE MODE ========================= */
+/* When enabled, disables blur effects and simplifies animations for 144fps scrolling */
+
+/* Completely disable all backdrop-filter blur effects */
+body.performance-mode-enabled [style*="backdrop-filter"],
+body.performance-mode-enabled [class*="backdrop-filter"],
+body.performance-mode-enabled *::before,
+body.performance-mode-enabled *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Disable filter effects */
+body.performance-mode-enabled [class*="background-image-layer"],
+body.performance-mode-enabled [class*="background-image-layer"] img {
+  filter: none !important;
+  -webkit-filter: none !important;
+}
+
+/* Remove all box shadows (GPU expensive) */
+body.performance-mode-enabled [class*="meta-item-container"],
+body.performance-mode-enabled [class*="poster-container"],
+body.performance-mode-enabled [class*="nav-tab-button"],
+body.performance-mode-enabled [class*="side-drawer"] {
+  box-shadow: none !important;
+}
+
+/* Disable all transitions except essential ones */
+body.performance-mode-enabled *,
+body.performance-mode-enabled *::before,
+body.performance-mode-enabled *::after {
+  transition-duration: 0ms !important;
+  animation: none !important;
+}
+
+/* Keep essential transitions for hover feedback (but very fast) */
+body.performance-mode-enabled [class*="meta-item-container"],
+body.performance-mode-enabled [class*="poster-container"],
+body.performance-mode-enabled [class*="nav-tab-button"] {
+  transition: transform 50ms linear, opacity 50ms linear !important;
+}
+
+/* Simplified hover effect - just opacity change, no scale */
+body.performance-mode-enabled [class*="meta-item-container"]:hover [class*="poster-container"] {
+  transform: none !important;
+  opacity: 0.85 !important;
+}
+
+/* No press effect */
+body.performance-mode-enabled [class*="meta-item-container"]:active [class*="poster-container"] {
+  transform: none !important;
+  opacity: 0.7 !important;
+}
+
+/* Remove will-change to save GPU memory */
+body.performance-mode-enabled * {
+  will-change: auto !important;
+}
+
+/* Ensure smooth scrolling with minimal overhead */
+body.performance-mode-enabled [class*="meta-items-container"],
+body.performance-mode-enabled [class*="board-content-container"],
+body.performance-mode-enabled [class*="discover-content"],
+body.performance-mode-enabled [class*="library-content"] {
+  transform: translateZ(0) !important;
+  contain: layout style !important;
+}
+
+/* Disable loading screen animations */
+body.performance-mode-enabled .loading-backdrop,
+body.performance-mode-enabled .loading-logo,
+body.performance-mode-enabled .loading-pulse,
+body.performance-mode-enabled .loading-progress::after {
+  animation: none !important;
+}
+
+/* Use solid backgrounds instead of blur */
+body.performance-mode-enabled [class*="horizontal-nav-bar-container"]::before {
+  background: rgba(20, 20, 20, 0.95) !important;
+}
+
+body.performance-mode-enabled [class*="side-drawer"] {
+  background: rgba(30, 30, 30, 0.98) !important;
+}
+
+/* Solid background for nav buttons */
+body.performance-mode-enabled #app [class*="nav-tab-button-container"]:not(.selected):hover {
+  background: rgba(90, 90, 90, 0.4) !important;
 }

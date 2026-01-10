@@ -62,16 +62,15 @@
 		managerButton.onclick = openManagerModal;
 		document.body.appendChild(managerButton);
 
-		setInterval(() => {
+		// Use hashchange event instead of polling - much more efficient
+		const updateButtonVisibility = () => {
 			const isOnAddonsPage = window.location.hash.startsWith("#/addons");
-			const isVisible = managerButton.style.display !== "none";
+			managerButton.style.display = isOnAddonsPage ? "block" : "none";
+		};
 
-			if (isOnAddonsPage && !isVisible) {
-				managerButton.style.display = "block";
-			} else if (!isOnAddonsPage && isVisible) {
-				managerButton.style.display = "none";
-			}
-		}, 500);
+		window.addEventListener('hashchange', updateButtonVisibility);
+		// Initial check
+		updateButtonVisibility();
 	}
 
 	function openManagerModal() {

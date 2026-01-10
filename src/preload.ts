@@ -11,7 +11,7 @@ import { getModsTabTemplate } from "./components/mods-tab/modsTab";
 import { getModItemTemplate } from "./components/mods-item/modsItem";
 import { getAboutCategoryTemplate } from "./components/about-category/aboutCategory";
 import { applyUserAppearance, writeAppearance, setupAppearanceControls } from "./components/appearance-category/appearanceCategory";
-import { getTweaksIcon, writeTweaks, setupTweaksControls, applyTweaks } from "./components/tweaks-category/tweaksCategory";
+import { getTweaksIcon, writeTweaks, setupTweaksControls, applyTweaks, initPerformanceMode } from "./components/tweaks-category/tweaksCategory";
 import { writeStreamingPerformance, setupStreamingPerformanceControls } from "./components/streaming-performance/streamingPerformance";
 import { getDefaultThemeTemplate } from "./components/default-theme/defaultTheme";
 import { getBackButton } from "./components/back-btn/backBtn";
@@ -104,22 +104,6 @@ function setObserverHandlerActive(id: string, active: boolean): void {
     }
 }
 
-// Pause ALL observers during scroll for maximum performance
-function pauseAllObservers(): void {
-    if (unifiedObserver) {
-        unifiedObserver.disconnect();
-    }
-}
-
-function resumeAllObservers(): void {
-    if (unifiedObserver) {
-        unifiedObserver.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: false
-        });
-    }
-}
 
 // ============================================
 // ASYNC FILE SYSTEM UTILITIES WITH CACHING
@@ -344,6 +328,9 @@ function initializeCoreFeatures(): void {
     // Apply UI tweaks - synchronous
     applyTweaks();
 
+    // Initialize performance mode (applies body class based on saved preference)
+    initPerformanceMode();
+
     // Load enabled plugins asynchronously (non-blocking) - only once
     if (!pluginsLoaded) {
         pluginsLoaded = true;
@@ -400,6 +387,7 @@ window.addEventListener("load", async () => {
     // Retry applying appearance and tweaks as fallback (in case Stremio's DOM changed)
     applyUserAppearance();
     applyTweaks();
+    initPerformanceMode();
 
     // Verify plugins were loaded, retry if not (fallback for early load failures)
     const enabledPlugins = JSON.parse(localStorage.getItem(STORAGE_KEYS.ENABLED_PLUGINS) || "[]");
@@ -677,8 +665,10 @@ function reloadServer(): void {
 }
 
 function initializeUserSettings(): void {
+    // Note: ENABLED_PLUGINS is intentionally NOT set here.
+    // loadEnabledPlugins() handles first-run detection and enables bundled plugins.
+    // Setting it here would interfere with proper first-run detection.
     const defaults: Record<string, string> = {
-        [STORAGE_KEYS.ENABLED_PLUGINS]: "[]",
         [STORAGE_KEYS.CHECK_UPDATES_ON_STARTUP]: "true",
         [STORAGE_KEYS.DISCORD_RPC]: "false",
         [STORAGE_KEYS.EXTERNAL_PLAYER]: EXTERNAL_PLAYERS.BUILTIN,
@@ -735,10 +725,12 @@ function applyUserTheme(): void {
     if (!currentTheme) {
         currentTheme = DEFAULT_BUNDLED_THEME;
         localStorage.setItem(STORAGE_KEYS.CURRENT_THEME, currentTheme);
+        logger.info(`First run: setting default theme to ${currentTheme}`);
     }
 
     // If "Default" (no theme), don't apply any theme
     if (currentTheme === "Default") {
+        logger.info("Theme set to 'Default' - no custom theme applied");
         return;
     }
 
@@ -748,6 +740,7 @@ function applyUserTheme(): void {
     const themePath = existsSync(userThemePath) ? userThemePath : bundledThemePath;
 
     if (!existsSync(themePath)) {
+        logger.warn(`Theme file not found: ${currentTheme} (checked: ${userThemePath} and ${bundledThemePath})`);
         localStorage.setItem(STORAGE_KEYS.CURRENT_THEME, "Default");
         return;
     }
@@ -819,17 +812,32 @@ async function loadEnabledPlugins(): Promise<void> {
             ? await readdir(properties.bundledPluginsPath).then(files => files.filter(f => f.endsWith(FILE_EXTENSIONS.PLUGIN)))
             : [];
 
+        logger.info(`Found ${bundledPlugins.length} bundled plugins, ${pluginsToLoad.length} total plugins available`);
+
         // Check if this is first run (no plugins configured yet)
+        // Parse stored plugins robustly - handle null, empty string, empty array, or malformed JSON
         const storedPlugins = localStorage.getItem(STORAGE_KEYS.ENABLED_PLUGINS);
         let enabledPlugins: string[];
+        let isFirstRun = false;
 
-        if (!storedPlugins || storedPlugins === "[]") {
+        try {
+            enabledPlugins = storedPlugins ? JSON.parse(storedPlugins) : [];
+            // Consider it first run if the stored value was null/undefined or an empty array
+            isFirstRun = !storedPlugins || (Array.isArray(enabledPlugins) && enabledPlugins.length === 0);
+        } catch {
+            // Malformed JSON - treat as first run
+            enabledPlugins = [];
+            isFirstRun = true;
+            logger.warn("Malformed ENABLED_PLUGINS in localStorage, resetting to defaults");
+        }
+
+        if (isFirstRun && bundledPlugins.length > 0) {
             // First run - enable all bundled plugins by default
             enabledPlugins = [...bundledPlugins];
             localStorage.setItem(STORAGE_KEYS.ENABLED_PLUGINS, JSON.stringify(enabledPlugins));
-            logger.info("First run: enabling all bundled plugins by default");
-        } else {
-            enabledPlugins = JSON.parse(storedPlugins);
+            logger.info(`First run: enabling ${enabledPlugins.length} bundled plugins by default`);
+        } else if (isFirstRun) {
+            logger.warn("First run but no bundled plugins found - plugins may not load correctly");
         }
 
         // Always ensure card-hover-info.plugin.js is enabled
@@ -2044,7 +2052,7 @@ function setupScrollStateDetection(): void {
     let rafId: number | null = null;
     let isScrolling = false;
     let lastScrollTime = 0;
-    const SCROLL_DEBOUNCE = 50; // Ultra-fast 50ms for 200Hz+ displays
+    const SCROLL_DEBOUNCE = 16; // One frame at 60Hz, optimized for 120Hz ProMotion
 
     // Pre-cache classList references for micro-optimization
     const bodyClassList = document.body.classList;
@@ -2060,8 +2068,8 @@ function setupScrollStateDetection(): void {
             isScrolling = true;
             bodyClassList.add('scrolling-active');
             htmlClassList.add('performance-mode');
-            // CRITICAL: Pause all MutationObservers during scroll
-            pauseAllObservers();
+            // NOTE: Do NOT pause MutationObservers - this prevents content from rendering during scroll
+            // CSS optimizations alone are sufficient for scroll performance
         }
 
         // Clear previous timeout
@@ -2077,8 +2085,6 @@ function setupScrollStateDetection(): void {
                     isScrolling = false;
                     bodyClassList.remove('scrolling-active');
                     htmlClassList.remove('performance-mode');
-                    // Resume observers after scroll ends
-                    resumeAllObservers();
                 }
             });
         }, SCROLL_DEBOUNCE);
@@ -2093,7 +2099,7 @@ function setupScrollStateDetection(): void {
     // Handle touch scrolling
     document.addEventListener('touchmove', handleScroll, { passive: true });
 
-    logger.info("Scroll state detection initialized (50ms RAF-based, observers paused during scroll)");
+    logger.info("Scroll state detection initialized (16ms RAF-based, observers remain active)");
 }
 
 // Global flag to track if we're currently handling external player
@@ -2408,30 +2414,51 @@ function injectAboutSectionStyles(): void {
     logger.info("About section styles injected");
 }
 
-// Setup click handlers for collapsible sections
+// Flag to track if delegated handler is already set up for general collapsibles
+let collapsibleDelegatedHandlerSetup = false;
+
+// Setup delegated click handlers for collapsible sections (excludes plugin groups which have their own handler)
 function setupCollapsibleHandlers(): void {
-    // Wait a bit for the DOM to be fully populated
+    // Set up delegated event handler once
+    if (!collapsibleDelegatedHandlerSetup) {
+        document.addEventListener('click', (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target) return;
+
+            // Check if clicked element is within a collapsible header
+            const header = target.closest('.enhanced-collapsible-header');
+            if (!header) return;
+
+            // Skip if this is a plugin group header (handled by setupPluginGroupHandlers)
+            if (header.closest('.plugin-group')) return;
+
+            const collapsible = header.closest('.enhanced-collapsible');
+            if (collapsible) {
+                collapsible.classList.toggle('collapsed');
+
+                // Save state to localStorage
+                const section = header.getAttribute('data-section');
+                if (section) {
+                    const isCollapsed = collapsible.classList.contains('collapsed');
+                    localStorage.setItem(`enhanced-collapsible-${section}`, isCollapsed ? 'collapsed' : 'expanded');
+                }
+            }
+        });
+        collapsibleDelegatedHandlerSetup = true;
+        logger.info('Collapsible delegated click handler initialized');
+    }
+
+    // Restore saved states for any collapsible headers currently in DOM
     setTimeout(() => {
         const headers = document.querySelectorAll('.enhanced-collapsible-header');
 
         headers.forEach(header => {
-            // Skip if already has handler
-            if (header.hasAttribute('data-collapsible-handler')) return;
-            header.setAttribute('data-collapsible-handler', 'true');
+            // Skip plugin group headers (handled separately)
+            if (header.closest('.plugin-group')) return;
 
-            header.addEventListener('click', () => {
-                const collapsible = header.closest('.enhanced-collapsible');
-                if (collapsible) {
-                    collapsible.classList.toggle('collapsed');
-
-                    // Save state to localStorage
-                    const section = header.getAttribute('data-section');
-                    if (section) {
-                        const isCollapsed = collapsible.classList.contains('collapsed');
-                        localStorage.setItem(`enhanced-collapsible-${section}`, isCollapsed ? 'collapsed' : 'expanded');
-                    }
-                }
-            });
+            // Skip if state already restored for this element
+            if (header.hasAttribute('data-collapsible-state-restored')) return;
+            header.setAttribute('data-collapsible-state-restored', 'true');
 
             // Restore saved state (default to collapsed)
             const section = header.getAttribute('data-section');
@@ -2447,7 +2474,7 @@ function setupCollapsibleHandlers(): void {
             }
         });
 
-        logger.info(`Collapsible handlers setup for ${headers.length} sections`);
+        logger.info(`Collapsible state restored for ${headers.length} sections`);
     }, TIMEOUTS.NAVIGATION_DEBOUNCE);
 }
 
@@ -2503,27 +2530,45 @@ function createPluginGroupSection(title: string, description: string, groupId: s
     return section;
 }
 
-// Setup click handlers for plugin group sections
+// Flag to track if delegated handler is already set up
+let pluginGroupDelegatedHandlerSetup = false;
+
+// Setup delegated click handler for plugin group sections
+// Uses event delegation for reliable click handling regardless of when elements are added
 function setupPluginGroupHandlers(): void {
+    // Set up delegated event handler once (handles all current and future plugin group headers)
+    if (!pluginGroupDelegatedHandlerSetup) {
+        document.addEventListener('click', (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target) return;
+
+            // Check if clicked element is within a plugin group header
+            const header = target.closest('.plugin-group .enhanced-collapsible-header');
+            if (!header) return;
+
+            const collapsible = header.closest('.enhanced-collapsible');
+            if (collapsible) {
+                collapsible.classList.toggle('collapsed');
+
+                const section = header.getAttribute('data-section');
+                if (section) {
+                    const isCollapsed = collapsible.classList.contains('collapsed');
+                    localStorage.setItem(`plugin-group-${section}`, isCollapsed ? 'collapsed' : 'expanded');
+                }
+            }
+        });
+        pluginGroupDelegatedHandlerSetup = true;
+        logger.info('Plugin group delegated click handler initialized');
+    }
+
+    // Restore saved states for any plugin group headers currently in DOM
     setTimeout(() => {
         const headers = document.querySelectorAll('.plugin-group .enhanced-collapsible-header');
 
         headers.forEach(header => {
-            if (header.hasAttribute('data-plugin-group-handler')) return;
-            header.setAttribute('data-plugin-group-handler', 'true');
-
-            header.addEventListener('click', () => {
-                const collapsible = header.closest('.enhanced-collapsible');
-                if (collapsible) {
-                    collapsible.classList.toggle('collapsed');
-
-                    const section = header.getAttribute('data-section');
-                    if (section) {
-                        const isCollapsed = collapsible.classList.contains('collapsed');
-                        localStorage.setItem(`plugin-group-${section}`, isCollapsed ? 'collapsed' : 'expanded');
-                    }
-                }
-            });
+            // Skip if state already restored for this element
+            if (header.hasAttribute('data-plugin-group-state-restored')) return;
+            header.setAttribute('data-plugin-group-state-restored', 'true');
 
             // Restore saved state (default to collapsed)
             const section = header.getAttribute('data-section');
@@ -2539,7 +2584,7 @@ function setupPluginGroupHandlers(): void {
             }
         });
 
-        logger.info(`Plugin group handlers setup for ${headers.length} groups`);
+        logger.info(`Plugin group state restored for ${headers.length} groups`);
     }, TIMEOUTS.NAVIGATION_DEBOUNCE);
 }
 

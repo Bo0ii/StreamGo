@@ -521,7 +521,8 @@
         }
     }
 
-    const intervalId = setInterval(checkElements, 200);
+    // Reduced from 200ms to 500ms for better performance
+    const intervalId = setInterval(checkElements, 500);
 
     window.onload = function(){
         const style = document.createElement("style");

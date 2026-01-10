@@ -42,14 +42,13 @@ function fixAllNavbars() {
     });
 }
 
-// fallback
+// MutationObserver handles all DOM changes - no polling needed
 let timeoutId;
 const observer = new MutationObserver(() => {
     clearTimeout(timeoutId);
-    timeoutId = setTimeout(fixAllNavbars, 50);
+    timeoutId = setTimeout(fixAllNavbars, 100);
 });
 observer.observe(document.body, { childList: true, subtree: true, attributes: true });
-setInterval(fixAllNavbars, 20);
 
 // Initial call
 fixAllNavbars();

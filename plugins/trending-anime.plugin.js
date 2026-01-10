@@ -741,11 +741,7 @@
             subtree: true
         });
 
-        setInterval(() => {
-            if (shouldShowAnimeRow() && !document.getElementById(ROW_ID) && !isInitializing) {
-                injectAnimeRow();
-            }
-        }, 3000);
+        // MutationObserver handles DOM changes - removed redundant 3s polling
 
         log('Plugin initialized');
     }

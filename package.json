@@ -1,6 +1,6 @@
 {
 	"name": "streamgo",
-	"version": "1.0.6-beta",
+	"version": "1.0.7-beta",
 	"description": "Electron-based Stremio client with plugins and themes support.",
 	"main": "./dist/main.js",
 	"scripts": {
@@ -8,6 +8,7 @@
 		"watch": "tsc -w",
 		"lint": "eslint -c .eslintrc --ext .ts ./src",
 		"dev": "node -e \"console.clear()\" && npm run dist && npx electron --log-level=3 ./dist/main.js --devtools",
+		"dev:perf": "node -e \"console.clear()\" && npm run dist && npx electron --log-level=3 ./dist/main.js",
 		"build": "npm run dist && electron-builder",
 		"build:linux:x64": "npm run dist && electron-builder --linux --x64",
 		"build:linux:arm64": "npm run dist && electron-builder --linux --arm64",

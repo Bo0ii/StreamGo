@@ -274,8 +274,7 @@
             subtree: true
         });
 
-        // Periodic check for dynamically loaded content
-        setInterval(processRows, 3000);
+        // MutationObserver handles dynamic content - removed redundant 3s polling
     }
 
     // Wait for DOM ready

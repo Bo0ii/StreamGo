@@ -17,17 +17,17 @@ class Properties {
     public static pluginsPath = join(Properties.enhancedPath, "plugins");
 
     // Bundled plugins/themes (shipped with the app)
-    // In dev: dist/plugins and dist/themes
+    // In dev: plugins/ and themes/ at project root (two levels up from dist/core/)
     // In production: resources/plugins and resources/themes
     private static isPackaged = __dirname.includes("app.asar");
 
     public static bundledPluginsPath = Properties.isPackaged
         ? join(process.resourcesPath, "plugins")
-        : join(dirname(__dirname), "plugins");
+        : join(dirname(dirname(__dirname)), "plugins");
 
     public static bundledThemesPath = Properties.isPackaged
         ? join(process.resourcesPath, "themes")
-        : join(dirname(__dirname), "themes");
+        : join(dirname(dirname(__dirname)), "themes");
 }
 
 export default Properties;

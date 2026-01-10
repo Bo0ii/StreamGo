@@ -117,12 +117,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path prepared-artifacts | Out-Null
-          
-          # Move all setup files (.exe, .blockmap) - only installers, no unpacked zips
+
+          # Move only .exe installer files (no blockmap needed for manual downloads)
           Get-ChildItem -Path "release-builds" -Filter "*.exe" | ForEach-Object {
-              Move-Item $_.FullName -Destination "prepared-artifacts/" -Force
-          }
-          Get-ChildItem -Path "release-builds" -Filter "*.blockmap" | ForEach-Object {
               Move-Item $_.FullName -Destination "prepared-artifacts/" -Force
           }
 
@@ -149,7 +146,6 @@ jobs:
           name: artifacts-${{ matrix.target }}-${{ matrix.arch }}
           path: |
             release-artifacts/*.exe
-            release-artifacts/*.blockmap
             release-artifacts/*.dmg
             release-artifacts/*.AppImage
           if-no-files-found: ignore
@@ -206,6 +202,44 @@ jobs:
           echo "Files in release-artifacts:"
           ls -la release-artifacts/ || echo "Directory is empty or doesn't exist"
 
+      - name: Rename artifacts to user-friendly names
+        run: |
+          cd release-artifacts
+          VERSION=$(node -p "require('../package.json').version")
+
+          echo "Renaming artifacts to user-friendly names..."
+
+          # Mac DMG files
+          for f in *-arm64.dmg; do
+            [ -f "$f" ] && mv "$f" "StreamGo ${VERSION} (Mac Apple Silicon).dmg"
+          done
+          for f in *.dmg; do
+            [[ -f "$f" && ! "$f" =~ "Apple Silicon" ]] && mv "$f" "StreamGo ${VERSION} (Mac Intel).dmg" 2>/dev/null || true
+          done
+
+          # Windows EXE files - Setup installer
+          for f in *Setup*.exe; do
+            [ -f "$f" ] && mv "$f" "StreamGo ${VERSION} (Windows).exe"
+          done
+          # Windows portable
+          for f in *.exe; do
+            [[ -f "$f" && ! "$f" =~ "Windows" ]] && mv "$f" "StreamGo ${VERSION} (Windows Portable).exe" 2>/dev/null || true
+          done
+
+          # Linux AppImage files
+          for f in *-arm64.AppImage; do
+            [ -f "$f" ] && mv "$f" "StreamGo ${VERSION} (Linux ARM).AppImage"
+          done
+          for f in *.AppImage; do
+            [[ -f "$f" && ! "$f" =~ "ARM" ]] && mv "$f" "StreamGo ${VERSION} (Linux).AppImage" 2>/dev/null || true
+          done
+
+          # Remove blockmap files (only needed for auto-updates, not manual downloads)
+          rm -f *.blockmap
+
+          echo "Renamed files:"
+          ls -la
+
       - name: Generate checksums
         run: |
           cd release-artifacts
@@ -241,7 +275,6 @@ jobs:
           make_latest: ${{ env.IS_PRERELEASE == 'false' }}
           files: |
             release-artifacts/*.exe
-            release-artifacts/*.blockmap
             release-artifacts/*.dmg
             release-artifacts/*.AppImage
             release-artifacts/SHA256SUMS.txt
