@@ -13,7 +13,8 @@ import { getAboutCategoryTemplate } from "./components/about-category/aboutCateg
 import { applyUserAppearance, writeAppearance, setupAppearanceControls } from "./components/appearance-category/appearanceCategory";
 import { getTweaksIcon, writeTweaks, setupTweaksControls, applyTweaks, initPerformanceMode } from "./components/tweaks-category/tweaksCategory";
 import { writeStreamingPerformance, setupStreamingPerformanceControls } from "./components/streaming-performance/streamingPerformance";
-import { getDefaultThemeTemplate } from "./components/default-theme/defaultTheme";
+// NOTE: Theme UI removed - liquid-glass is locked
+// import { getDefaultThemeTemplate } from "./components/default-theme/defaultTheme";
 import { getBackButton } from "./components/back-btn/backBtn";
 import { getTitleBarTemplate } from "./components/title-bar/titleBar";
 import { initPlayerOverlay, cleanupPlayerOverlay } from "./components/player-overlay/playerOverlay";
@@ -40,35 +41,98 @@ interface ObserverHandler {
     id: string;
     callback: (mutations: MutationRecord[]) => void;
     active: boolean;
+    filter?: (mutation: MutationRecord) => boolean; // Optional filter to reduce callback frequency
 }
 
 const observerHandlers: Map<string, ObserverHandler> = new Map();
 let unifiedObserver: MutationObserver | null = null;
-let observerRafId: number | null = null;
+let observerDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingMutations: MutationRecord[] = [];
 
 // Initialization state flags to prevent duplicate initialization
 let settingsInitialized = false;
 let pluginsLoaded = false;
 
+// Debounce interval for mutation observer (ms) - reduces CPU by batching rapid mutations
+const OBSERVER_DEBOUNCE_MS = 100;
+
+// Check if performance mode is enabled (skip observer processing)
+function isPerformanceModeActive(): boolean {
+    return document.body.classList.contains('performance-mode-enabled');
+}
+
+// Filter out mutations that are unlikely to be relevant to any handler
+function isRelevantMutation(mutation: MutationRecord): boolean {
+    // Skip text node changes
+    if (mutation.type === 'characterData') return false;
+
+    // Skip mutations inside video/canvas elements (player internals)
+    const target = mutation.target as Element;
+    if (target.tagName === 'VIDEO' || target.tagName === 'CANVAS') return false;
+    if (target.closest?.('video, canvas, .video-player')) return false;
+
+    // Skip style-only mutations (already handled by CSS)
+    if (mutation.type === 'attributes' && mutation.attributeName === 'style') return false;
+
+    // For childList mutations, check if anything meaningful was added
+    if (mutation.type === 'childList') {
+        // Skip if only text nodes were added/removed
+        const hasElementNodes = Array.from(mutation.addedNodes).some(
+            node => node.nodeType === Node.ELEMENT_NODE
+        ) || Array.from(mutation.removedNodes).some(
+            node => node.nodeType === Node.ELEMENT_NODE
+        );
+        if (!hasElementNodes) return false;
+    }
+
+    return true;
+}
+
 function initUnifiedObserver(): void {
     if (unifiedObserver) return;
 
     unifiedObserver = new MutationObserver((mutations) => {
-        // Cancel pending frame to batch mutations
-        if (observerRafId) cancelAnimationFrame(observerRafId);
+        // Skip processing entirely in performance mode
+        if (isPerformanceModeActive()) return;
 
-        observerRafId = requestAnimationFrame(() => {
-            observerHandlers.forEach(handler => {
-                if (handler.active) {
+        // Filter to only relevant mutations
+        const relevantMutations = mutations.filter(isRelevantMutation);
+        if (relevantMutations.length === 0) return;
+
+        // Accumulate mutations for debouncing
+        pendingMutations.push(...relevantMutations);
+
+        // Debounce: wait for mutations to settle before processing
+        if (observerDebounceTimer) clearTimeout(observerDebounceTimer);
+
+        observerDebounceTimer = setTimeout(() => {
+            const mutationsToProcess = pendingMutations;
+            pendingMutations = [];
+            observerDebounceTimer = null;
+
+            // Skip if no active handlers
+            if (observerHandlers.size === 0) return;
+
+            // Process on next animation frame for smoothness
+            requestAnimationFrame(() => {
+                observerHandlers.forEach(handler => {
+                    if (!handler.active) return;
+
                     try {
-                        handler.callback(mutations);
+                        // If handler has a filter, only pass matching mutations
+                        const filteredMutations = handler.filter
+                            ? mutationsToProcess.filter(handler.filter)
+                            : mutationsToProcess;
+
+                        if (filteredMutations.length > 0) {
+                            handler.callback(filteredMutations);
+                        }
                     } catch (e) {
                         logger.error(`Observer handler ${handler.id} error: ${e}`);
                     }
-                }
+                });
             });
-            observerRafId = null;
-        });
+        }, OBSERVER_DEBOUNCE_MS);
     });
 
     unifiedObserver.observe(document.body, {
@@ -77,12 +141,16 @@ function initUnifiedObserver(): void {
         attributes: false
     });
 
-    logger.info("Unified MutationObserver initialized");
+    logger.info("Unified MutationObserver initialized with debouncing");
 }
 
-function registerObserverHandler(id: string, callback: (mutations: MutationRecord[]) => void): void {
+function registerObserverHandler(
+    id: string,
+    callback: (mutations: MutationRecord[]) => void,
+    filter?: (mutation: MutationRecord) => boolean
+): void {
     initUnifiedObserver();
-    observerHandlers.set(id, { id, callback, active: true });
+    observerHandlers.set(id, { id, callback, active: true, filter });
     logger.info(`Observer handler registered: ${id}`);
 }
 
@@ -481,19 +549,18 @@ window.addEventListener("load", async () => {
 
         // Only create sections if they don't exist yet
         if (!sectionsAlreadyExist) {
-            // Get themes and plugins asynchronously (non-blocking)
+            // Get plugins asynchronously (non-blocking)
+            // NOTE: themesList removed - theme is locked to liquid-glass
             const modLists = await getModListsAsync();
-            const themesList = modLists.themes;
             const pluginsList = modLists.plugins;
 
             logger.info("Adding 'Plus' sections...");
             Settings.addSection("enhanced", "Plus");
-            Settings.addCategory("Themes", "enhanced", getThemeIcon());
+            // NOTE: Themes category removed - liquid-glass theme is locked as the core StreamGo experience
             Settings.addCategory("Plugins", "enhanced", getPluginIcon());
             Settings.addCategory("Tweaks", "enhanced", getTweaksIcon());
             Settings.addCategory("About", "enhanced", getAboutIcon());
 
-            Settings.addButton("Open Themes Folder", "openthemesfolderBtn", SELECTORS.THEMES_CATEGORY);
             Settings.addButton("Open Plugins Folder", "openpluginsfolderBtn", SELECTORS.PLUGINS_CATEGORY);
 
             writeAbout();
@@ -501,36 +568,7 @@ window.addEventListener("load", async () => {
             writeTweaks();
             writeStreamingPerformance();
 
-            // Add themes to settings
-            Helpers.waitForElm(SELECTORS.THEMES_CATEGORY).then(() => {
-                // Default theme
-                const isCurrentThemeDefault = localStorage.getItem(STORAGE_KEYS.CURRENT_THEME) === "Default";
-                const defaultThemeContainer = document.createElement("div");
-                defaultThemeContainer.innerHTML = getDefaultThemeTemplate(isCurrentThemeDefault);
-                document.querySelector(SELECTORS.THEMES_CATEGORY)?.appendChild(defaultThemeContainer);
-
-                // Add installed themes
-                themesList.forEach(theme => {
-                    // Check user path first, then bundled path
-                    const userPath = join(properties.themesPath, theme);
-                    const bundledPath = join(properties.bundledThemesPath, theme);
-                    const themePath = existsSync(userPath) ? userPath : bundledPath;
-
-                    const metaData = Helpers.extractMetadataFromFile(themePath);
-                    if (metaData && metaData.name && metaData.description && metaData.author && metaData.version) {
-                        if (metaData.name.toLowerCase() !== "default") {
-                            Settings.addItem("theme", theme, {
-                                name: metaData.name,
-                                description: metaData.description,
-                                author: metaData.author,
-                                version: metaData.version,
-                                updateUrl: metaData.updateUrl,
-                                source: metaData.source
-                            });
-                        }
-                    }
-                });
-            }).catch(err => logger.error("Failed to setup themes: " + err));
+            // NOTE: Theme selection UI removed - liquid-glass theme is locked
 
             // Add plugins to settings grouped by author
             interface PluginData {
@@ -718,21 +756,12 @@ function applyUserTheme(): void {
         return;
     }
 
-    const DEFAULT_BUNDLED_THEME = "liquid-glass.theme.css";
-    let currentTheme = localStorage.getItem(STORAGE_KEYS.CURRENT_THEME);
+    // LOCKED: Always use liquid-glass theme - it's the core StreamGo experience
+    const LOCKED_THEME = "liquid-glass.theme.css";
+    const currentTheme = LOCKED_THEME;
 
-    // If no theme is set, use the bundled glass theme as default
-    if (!currentTheme) {
-        currentTheme = DEFAULT_BUNDLED_THEME;
-        localStorage.setItem(STORAGE_KEYS.CURRENT_THEME, currentTheme);
-        logger.info(`First run: setting default theme to ${currentTheme}`);
-    }
-
-    // If "Default" (no theme), don't apply any theme
-    if (currentTheme === "Default") {
-        logger.info("Theme set to 'Default' - no custom theme applied");
-        return;
-    }
+    // Ensure localStorage reflects the locked theme
+    localStorage.setItem(STORAGE_KEYS.CURRENT_THEME, LOCKED_THEME);
 
     // Check user path first, then bundled path
     const userThemePath = join(properties.themesPath, currentTheme);
@@ -1992,12 +2021,7 @@ async function handleExternalPlayerInterception(): Promise<void> {
     history.back();
 }
 
-// Icon SVGs
-function getThemeIcon(): string {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon">
-        <g><path fill="none" d="M0 0h24v24H0z"></path>
-        <path d="M4 3h16a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm2 9h6a1 1 0 0 1 1 1v3h1v6h-4v-6h1v-2H5a1 1 0 0 1-1-1v-2h2v1zm11.732 1.732l1.768-1.768 1.768 1.768a2.5 2.5 0 1 1-3.536 0z" style="fill: currentcolor;"></path></g></svg>`;
-}
+// Icon SVGs (getThemeIcon removed - theme UI is locked)
 
 function getPluginIcon(): string {
     return `<svg icon="addons-outline" class="icon" viewBox="0 0 512 512" style="fill: currentcolor;">
