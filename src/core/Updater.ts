@@ -1,9 +1,13 @@
 import { readFileSync } from "fs";
 import helpers from '../utils/Helpers';
 import { getLogger } from "../utils/logger";
-import { join } from "path";
+import { join, basename } from "path";
 import { getUpdateModalTemplate } from "../components/update-modal/updateModal";
 import { URLS } from "../constants";
+import https from "https";
+import { createWriteStream, unlinkSync, existsSync } from "fs";
+import { promisify } from "util";
+import { execFile } from "child_process";
 
 // Try to import app, but handle if we're in renderer process
 let app: typeof import("electron").app | undefined;
@@ -178,6 +182,255 @@ class Updater {
             this.logger.error(`Failed to fetch release notes: ${(error as Error).message}`);
             return "Could not load release notes.";
         }
+    }
+
+    /**
+     * Get the full release information from GitHub
+     */
+    public static async getReleaseInfo(): Promise<any> {
+        try {
+            const response = await fetch(URLS.RELEASES_API);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            this.logger.error(`Failed to fetch release info: ${(error as Error).message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Get the installer URL for the current platform and architecture
+     */
+    public static getInstallerUrlForPlatform(release: any, platform: string, arch: string): string | null {
+        if (!release.assets || !Array.isArray(release.assets)) {
+            return null;
+        }
+
+        const matchers: Record<string, RegExp> = {
+            win32: /\.exe$/i,
+            darwin: /\.dmg$/i,
+            linux: /\.AppImage$/i,
+        };
+
+        const pattern = matchers[platform];
+        if (!pattern) {
+            return null;
+        }
+
+        // Find installer file matching platform and architecture
+        const asset = release.assets.find((a: any) => {
+            if (!pattern.test(a.name)) return false;
+            
+            // For Windows, prefer Setup.exe files (NSIS installer)
+            if (platform === "win32") {
+                return a.name.toLowerCase().includes("setup") && 
+                       (a.name.toLowerCase().includes(arch) || a.name.toLowerCase().includes("x64"));
+            }
+            
+            // For macOS, check architecture
+            if (platform === "darwin") {
+                return a.name.toLowerCase().includes(arch) || 
+                       (arch === "arm64" && a.name.toLowerCase().includes("universal"));
+            }
+            
+            // For Linux, check architecture
+            if (platform === "linux") {
+                return a.name.toLowerCase().includes(arch) || 
+                       a.name.toLowerCase().includes("x86_64");
+            }
+            
+            return true;
+        });
+
+        return asset ? asset.browser_download_url : null;
+    }
+
+    /**
+     * Download the installer file with progress tracking
+     */
+    public static async downloadUpdate(
+        installerUrl: string,
+        destPath: string,
+        onProgress: (progress: number, bytesDownloaded: number, totalBytes: number) => void
+    ): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const file = createWriteStream(destPath);
+            let resolved = false;
+            
+            const cleanup = (error?: Error) => {
+                if (resolved) return;
+                file.close(() => {
+                    if (existsSync(destPath)) {
+                        try {
+                            unlinkSync(destPath);
+                        } catch (err) {
+                            // Ignore cleanup errors
+                        }
+                    }
+                    if (error && !resolved) {
+                        resolved = true;
+                        reject(error);
+                    }
+                });
+            };
+
+            file.on('error', (error: Error) => {
+                cleanup(error);
+            });
+
+            https.get(installerUrl, { headers: { "User-Agent": "StreamGo-Updater" } }, (res) => {
+                // Handle redirects
+                const redirectLocation = res.headers.location;
+                if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && redirectLocation) {
+                    file.close(() => {
+                        if (existsSync(destPath)) {
+                            try {
+                                unlinkSync(destPath);
+                            } catch (err) {
+                                // Ignore cleanup errors
+                            }
+                        }
+                        // Recursively follow redirect
+                        Updater.downloadUpdate(redirectLocation, destPath, onProgress)
+                            .then(() => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    resolve();
+                                }
+                            })
+                            .catch((error) => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    reject(error);
+                                }
+                            });
+                    });
+                    return;
+                }
+
+                if (res.statusCode && res.statusCode !== 200) {
+                    cleanup(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
+                    return;
+                }
+
+                const totalBytes = parseInt(res.headers['content-length'] || '0', 10);
+                let bytesDownloaded = 0;
+
+                res.on('data', (chunk: Buffer) => {
+                    bytesDownloaded += chunk.length;
+                    const progress = totalBytes > 0 ? (bytesDownloaded / totalBytes) * 100 : 0;
+                    onProgress(progress, bytesDownloaded, totalBytes);
+                });
+
+                res.pipe(file);
+
+                file.on('finish', () => {
+                    file.close(() => {
+                        if (!resolved) {
+                            resolved = true;
+                            this.logger.info(`Download complete: ${bytesDownloaded} bytes downloaded`);
+                            resolve();
+                        }
+                    });
+                });
+
+                res.on('error', (error: Error) => {
+                    cleanup(error);
+                });
+            }).on('error', (error: Error) => {
+                cleanup(error);
+            });
+        });
+    }
+
+    /**
+     * Install the update based on platform
+     */
+    public static async installUpdate(installerPath: string, platform: string): Promise<void> {
+        const execFileAsync = promisify(execFile);
+
+        switch (platform) {
+            case "win32": {
+                // NSIS installer silent mode with admin privileges
+                this.logger.info(`Installing update on Windows: ${installerPath}`);
+                // Use Start-Process with -Wait to ensure installation completes
+                const ps = `$process = Start-Process -FilePath "${installerPath}" -ArgumentList '/S' -Verb RunAs -Wait -PassThru; if ($process.ExitCode -ne 0) { throw "Installation failed with exit code $($process.ExitCode)" }`;
+                await execFileAsync("powershell.exe", [
+                    "-ExecutionPolicy", "Bypass",
+                    "-NoProfile",
+                    "-Command", ps
+                ], {
+                    windowsHide: true,
+                });
+                this.logger.info("Windows installation completed successfully");
+                break;
+            }
+            case "darwin": {
+                // Mount DMG and copy app
+                this.logger.info(`Installing update on macOS: ${installerPath}`);
+                const volume = "/Volumes/StreamGo";
+                try {
+                    await execFileAsync("hdiutil", ["attach", installerPath, "-mountpoint", volume]);
+                    // Find the .app bundle in the mounted volume
+                    const appPath = `${volume}/StreamGo.app`;
+                    if (existsSync(appPath)) {
+                        await execFileAsync("cp", ["-R", appPath, "/Applications/"]);
+                    } else {
+                        throw new Error("StreamGo.app not found in DMG");
+                    }
+                } finally {
+                    await execFileAsync("hdiutil", ["detach", volume]).catch(() => {
+                        // Ignore errors when detaching
+                    });
+                }
+                break;
+            }
+            case "linux": {
+                // Replace existing AppImage
+                this.logger.info(`Installing update on Linux: ${installerPath}`);
+                const appImagePath = process.execPath; // Current AppImage path
+                if (appImagePath.endsWith(".AppImage") || appImagePath.endsWith(".appimage")) {
+                    await execFileAsync("cp", [installerPath, appImagePath]);
+                    await execFileAsync("chmod", ["+x", appImagePath]);
+                } else {
+                    // If not running from AppImage, copy to a standard location
+                    const targetPath = join(process.env.HOME || "/home", "Applications", basename(installerPath));
+                    await execFileAsync("mkdir", ["-p", join(process.env.HOME || "/home", "Applications")]);
+                    await execFileAsync("cp", [installerPath, targetPath]);
+                    await execFileAsync("chmod", ["+x", targetPath]);
+                }
+                break;
+            }
+            default:
+                throw new Error(`Unsupported platform: ${platform}`);
+        }
+
+        // Clean up installer file after successful installation
+        try {
+            if (existsSync(installerPath)) {
+                unlinkSync(installerPath);
+                this.logger.info(`Cleaned up installer file: ${installerPath}`);
+            }
+        } catch (error) {
+            this.logger.warn(`Failed to delete installer file: ${(error as Error).message}`);
+        }
+    }
+
+    /**
+     * Restart the application
+     */
+    public static restartApplication(): void {
+        if (!app) {
+            throw new Error("App not available - cannot restart");
+        }
+        
+        this.logger.info("Restarting application...");
+        app.relaunch();
+        app.exit(0);
     }
 }
 

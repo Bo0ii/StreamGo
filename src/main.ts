@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join, basename } from "path";
 import { mkdirSync, existsSync, writeFileSync, unlinkSync } from "fs";
 import helpers from './utils/Helpers';
 import Updater from "./core/Updater";
@@ -176,6 +176,96 @@ async function createWindow() {
         await Updater.checkForUpdates(true);
     });
 
+    // Update download and install IPC handlers
+    ipcMain.handle(IPC_CHANNELS.UPDATE_DOWNLOAD_START, async () => {
+        try {
+            logger.info("Starting update download...");
+            const release = await Updater.getReleaseInfo();
+            const platform = process.platform;
+            const arch = process.arch;
+            const installerUrl = Updater.getInstallerUrlForPlatform(release, platform, arch);
+            
+            if (!installerUrl) {
+                throw new Error(`No installer found for platform ${platform} (${arch})`);
+            }
+
+            const tempDir = app.getPath("temp");
+            const fileName = basename(installerUrl);
+            const destPath = join(tempDir, fileName);
+
+            logger.info(`Downloading installer from ${installerUrl} to ${destPath}`);
+
+            // Download with progress tracking
+            await Updater.downloadUpdate(installerUrl, destPath, (progress, bytesDownloaded, totalBytes) => {
+                // Send progress updates to renderer
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send(IPC_CHANNELS.UPDATE_DOWNLOAD_PROGRESS, {
+                        progress,
+                        bytesDownloaded,
+                        totalBytes
+                    });
+                }
+            });
+
+            logger.info("Download complete");
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send(IPC_CHANNELS.UPDATE_DOWNLOAD_COMPLETE, { installerPath: destPath });
+            }
+            return { success: true, installerPath: destPath };
+        } catch (error) {
+            logger.error(`Failed to download update: ${(error as Error).message}`);
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send(IPC_CHANNELS.UPDATE_ERROR, {
+                    stage: 'download',
+                    message: (error as Error).message
+                });
+            }
+            return { success: false, error: (error as Error).message };
+        }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_INSTALL_START, async (_, installerPath: string) => {
+        try {
+            logger.info(`Starting update installation: ${installerPath}`);
+            
+            if (!existsSync(installerPath)) {
+                throw new Error(`Installer not found: ${installerPath}`);
+            }
+
+            // Notify renderer that installation has started
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send(IPC_CHANNELS.UPDATE_INSTALL_START);
+            }
+
+            const platform = process.platform;
+            await Updater.installUpdate(installerPath, platform);
+
+            logger.info("Installation complete");
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send(IPC_CHANNELS.UPDATE_INSTALL_COMPLETE);
+            }
+            return { success: true };
+        } catch (error) {
+            logger.error(`Failed to install update: ${(error as Error).message}`);
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send(IPC_CHANNELS.UPDATE_ERROR, {
+                    stage: 'install',
+                    message: (error as Error).message
+                });
+            }
+            return { success: false, error: (error as Error).message };
+        }
+    });
+
+    ipcMain.on(IPC_CHANNELS.UPDATE_RESTART_APP, () => {
+        logger.info("Restarting application after update...");
+        try {
+            Updater.restartApplication();
+        } catch (error) {
+            logger.error(`Failed to restart application: ${(error as Error).message}`);
+        }
+    });
+
     ipcMain.on(IPC_CHANNELS.SET_TRANSPARENCY, (_, enabled: boolean) => {
         if (enabled) {
             logger.info("Enabled window transparency");
@@ -289,12 +379,17 @@ async function useStremioService() {
                     ["OK"]
                 );
             } else {
-                await Helpers.showAlert(
+                const errorResult = await Helpers.showAlert(
                     "error",
                     "Installation Failed",
-                    "Failed to install Stremio Service. Please try again or install it manually from https://github.com/Stremio/stremio-service/releases",
-                    ["OK"]
+                    "Failed to install Stremio Service automatically. You can manually download and install it from the GitHub releases page.\n\nClick 'Install' to open the download page in your browser, or 'OK' to close this dialog.",
+                    ["OK", "Install"]
                 );
+                if (errorResult === 1) {
+                    // User clicked "Install" - open Stremio Service releases page
+                    logger.info("User chose to open Stremio Service releases page in browser.");
+                    shell.openExternal("https://github.com/Stremio/stremio-service/releases");
+                }
             }
         } else {
             logger.info("User declined to download Stremio Service.");

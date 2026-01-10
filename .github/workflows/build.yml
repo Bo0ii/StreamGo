@@ -90,44 +90,20 @@ jobs:
         run: |
           mkdir -p prepared-artifacts
 
-          # Handle Linux
+          # Handle Linux - only move installers
           if [[ "${{ matrix.target }}" == "linux" ]]; then
-            # Move setup files if they exist
             if compgen -G "release-builds/*.AppImage" > /dev/null; then
               mv release-builds/*.AppImage prepared-artifacts/
             fi
             if compgen -G "release-builds/*.snap" > /dev/null; then
               mv release-builds/*.snap prepared-artifacts/
             fi
-
-            # Compress unpacked folders appropriately
-            if [[ -d release-builds/linux-arm64-unpacked ]]; then
-              cd release-builds
-              zip -r ../prepared-artifacts/linux-arm64-unpacked.zip linux-arm64-unpacked
-              cd ..
-            elif [[ -d release-builds/linux-unpacked ]]; then
-              cd release-builds
-              zip -r ../prepared-artifacts/linux-unpacked.zip linux-unpacked
-              cd ..
-            fi
           fi
 
-          # Handle macOS
+          # Handle macOS - only move installers
           if [[ "${{ matrix.target }}" == "mac" ]]; then
-            # Move setup file if it exists
             if compgen -G "release-builds/*.dmg" > /dev/null; then
               mv release-builds/*.dmg prepared-artifacts/
-            fi
-
-            # Compress unpacked folders appropriately
-            if [[ "${{ matrix.arch }}" == "x64" && -d release-builds/mac ]]; then
-              cd release-builds
-              zip -r ../prepared-artifacts/mac-unpacked.zip mac
-              cd ..
-            elif [[ -d release-builds/mac-${{ matrix.arch }} ]]; then
-              cd release-builds
-              zip -r ../prepared-artifacts/mac-${{ matrix.arch }}.zip mac-${{ matrix.arch }}
-              cd ..
             fi
           fi
         shell: bash
@@ -138,21 +114,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path prepared-artifacts | Out-Null
           
-          # Move all setup files (.exe, .blockmap)
-          # electron-builder creates architecture-specific builds, so all files are relevant
+          # Move all setup files (.exe, .blockmap) - only installers, no unpacked zips
           Get-ChildItem -Path "release-builds" -Filter "*.exe" | ForEach-Object {
               Move-Item $_.FullName -Destination "prepared-artifacts/" -Force
           }
           Get-ChildItem -Path "release-builds" -Filter "*.blockmap" | ForEach-Object {
               Move-Item $_.FullName -Destination "prepared-artifacts/" -Force
-          }
-          
-          # Compress unpacked folders based on architecture
-          if ("${{ matrix.arch }}" -eq "x64" -and (Test-Path "release-builds/win-unpacked")) {
-              Compress-Archive -Path "release-builds/win-unpacked\*" -DestinationPath "prepared-artifacts/win-unpacked-x64.zip" -Force
-          }
-          if ("${{ matrix.arch }}" -eq "arm64" -and (Test-Path "release-builds/win-arm64-unpacked")) {
-              Compress-Archive -Path "release-builds/win-arm64-unpacked\*" -DestinationPath "prepared-artifacts/win-arm64-unpacked.zip" -Force
           }
 
       - name: Move artifacts to release directory (Linux/macOS)
@@ -172,22 +139,16 @@ jobs:
             Get-ChildItem -Path "prepared-artifacts" | Move-Item -Destination "release-artifacts" -Force
           }
 
-      - name: Upload setup files
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: setup-files-${{ matrix.target }}-${{ matrix.arch }}
+          name: artifacts-${{ matrix.target }}-${{ matrix.arch }}
           path: |
             release-artifacts/*.exe
             release-artifacts/*.blockmap
             release-artifacts/*.dmg
             release-artifacts/*.AppImage
           if-no-files-found: ignore
-
-      - name: Upload unpacked folders (zipped)
-        uses: actions/upload-artifact@v4
-        with:
-          name: unpacked-folders-${{ matrix.target }}-${{ matrix.arch }}
-          path: release-artifacts/*.zip
 
   release:
     needs: build
@@ -250,7 +211,6 @@ jobs:
             release-artifacts/*.blockmap
             release-artifacts/*.dmg
             release-artifacts/*.AppImage
-            release-artifacts/*.zip
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

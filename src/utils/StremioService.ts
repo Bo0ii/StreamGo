@@ -1,6 +1,6 @@
 import { getLogger } from "./logger";
 import { basename, join, resolve } from "path";
-import { existsSync, createWriteStream, unlinkSync } from "fs";
+import { existsSync, createWriteStream, unlinkSync, readFileSync } from "fs";
 import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import * as process from 'process';
@@ -43,8 +43,32 @@ class StremioService {
                     case "darwin": 
                         child = spawn("open", ["/Applications/StremioService.app"], { detached: true, stdio: "ignore" });
                         break;
-                    case "linux": 
-                        child = spawn("flatpak", ["run", "com.stremio.Service"], { detached: true, stdio: "ignore" });
+                    case "linux":
+                        // Try to start from system installation first, then Flatpak
+                        const systemPaths = [
+                            "/usr/bin/stremio-service",
+                            "/usr/local/bin/stremio-service",
+                            "/opt/stremio-service/stremio-service",
+                            "/usr/lib/stremio-service/stremio-service"
+                        ];
+                        
+                        let servicePath: string | null = null;
+                        for (const path of systemPaths) {
+                            if (existsSync(path)) {
+                                servicePath = path;
+                                break;
+                            }
+                        }
+                        
+                        if (servicePath) {
+                            // Start from system installation
+                            this.logger.info(`Starting Stremio Service from system path: ${servicePath}`);
+                            child = spawn(servicePath, [], { detached: true, stdio: "ignore" });
+                        } else {
+                            // Fallback to Flatpak
+                            this.logger.info("Starting Stremio Service via Flatpak");
+                            child = spawn("flatpak", ["run", "com.stremio.Service"], { detached: true, stdio: "ignore" });
+                        }
                         break;
                     default:
                         return reject(new Error("Unsupported platform"));
@@ -65,15 +89,21 @@ class StremioService {
         const platform = process.platform;
         
         try {
+            this.logger.info("Fetching latest Stremio Service release information...");
             const release = await this.fetchLatestRelease();
             if (!release) {
-                this.logger.error("Failed to fetch latest release info");
+                this.logger.error("Failed to fetch latest release info from GitHub");
                 return false;
             }
 
-            const assetUrl = this.getAssetUrlForPlatform(release, platform);
+            this.logger.info(`Found release: ${release.tag_name}`);
+            
+            // Extract version from tag_name (e.g., "v0.1.15" -> "v0.1.15")
+            const version = release.tag_name;
+            
+            const assetUrl = await this.getDirectDownloadUrl(version, platform);
             if (!assetUrl) {
-                this.logger.error("No suitable asset found for platform: " + platform);
+                this.logger.error(`No suitable download URL found for platform: ${platform}`);
                 return false;
             }
             
@@ -81,37 +111,57 @@ class StremioService {
             const fileName = basename(assetUrl);
             const destPath = join(tempDir, fileName);
 
-            this.logger.info(`Downloading latest Stremio Service (${release.tag_name}) in ${destPath}`);
-            await this.downloadFile(assetUrl, destPath);
-            this.logger.info("Download complete. Installing...");
+            this.logger.info(`Downloading latest Stremio Service (${release.tag_name}) to ${destPath}`);
+            try {
+                await this.downloadFile(assetUrl, destPath);
+                this.logger.info("Download complete. Starting installation...");
+            } catch (error) {
+                this.logger.error(`Failed to download Stremio Service: ${(error as Error).message}`);
+                return false;
+            }
 
-            switch (platform) {
-                case "win32":
-                    await this.installWindows(destPath);
-                    break;
-                case "darwin":
-                    await this.installMac(destPath);
-                    break;
-                case "linux":
-                    await this.installLinux(destPath);
-                    break;
-                default:
-                    this.logger.warn("No install routine defined for: " + platform);
-                    return false;
+            try {
+                switch (platform) {
+                    case "win32":
+                        this.logger.info("Installing Stremio Service on Windows...");
+                        await this.installWindows(destPath);
+                        break;
+                    case "darwin":
+                        this.logger.info("Installing Stremio Service on macOS...");
+                        await this.installMac(destPath);
+                        break;
+                    case "linux":
+                        this.logger.info("Installing Stremio Service on Linux...");
+                        await this.installLinux(destPath);
+                        break;
+                    default:
+                        this.logger.error(`No install routine defined for platform: ${platform}`);
+                        return false;
+                }
+            } catch (error) {
+                this.logger.error(`Failed to install Stremio Service: ${(error as Error).message}`);
+                return false;
             }
             
             // Verify installation was successful
+            this.logger.info("Verifying installation...");
             const installed = await this.isServiceInstalled();
             if (installed) {
                 this.logger.info("Stremio Service installed successfully. Starting service...");
-                await this.start();
-                return true;
+                try {
+                    await this.start();
+                    return true;
+                } catch (error) {
+                    this.logger.error(`Installation successful but failed to start service: ${(error as Error).message}`);
+                    // Still return true since installation succeeded, service might need manual start
+                    return true;
+                }
             } else {
-                this.logger.warn("Installation completed but service not detected as installed.");
+                this.logger.warn("Installation process completed but service not detected as installed. You may need to install manually.");
                 return false;
             }
         } catch (error) {
-            this.logger.error(`Failed to download and install Stremio Service: ${(error as Error).message}`);
+            this.logger.error(`Unexpected error during Stremio Service installation: ${(error as Error).message}`);
             return false;
         }
     }
@@ -141,20 +191,109 @@ class StremioService {
         });
     }
     
-    private static getAssetUrlForPlatform(release: GitHubRelease, platform: string): string | null {
-        if (!release.assets || !Array.isArray(release.assets)) return null;
-
-        const matchers: Record<string, RegExp> = {
-            win32: /\.exe$/i,
-            darwin: /\.dmg$/i,
-            linux: /\.flatpak$/i,
-        };
-
-        const pattern = matchers[platform];
-        if (!pattern) return null;
-
-        const asset = release.assets.find((a: GitHubReleaseAsset) => pattern.test(a.name));
-        return asset ? asset.browser_download_url : null;
+    /**
+     * Get direct download URL from dl.strem.io based on platform and version
+     */
+    private static async getDirectDownloadUrl(version: string, platform: string): Promise<string | null> {
+        const baseUrl = `https://dl.strem.io/stremio-service/${version}`;
+        
+        switch (platform) {
+            case "win32":
+                // Windows: StremioServiceSetup.exe
+                return `${baseUrl}/StremioServiceSetup.exe`;
+                
+            case "darwin":
+                // macOS: StremioService.dmg
+                return `${baseUrl}/StremioService.dmg`;
+                
+            case "linux":
+                // Linux: Try to detect distribution, prefer Debian (.deb), then RedHat (.rpm)
+                const distro = await this.detectLinuxDistribution();
+                
+                if (distro === "debian" || distro === "ubuntu" || distro === "unknown") {
+                    // Try Debian package first (most common)
+                    this.logger.info("Detected Debian-based Linux distribution, using .deb package");
+                    return `${baseUrl}/stremio-service_amd64.deb`;
+                } else if (distro === "redhat" || distro === "fedora" || distro === "centos") {
+                    // Use RedHat package
+                    this.logger.info("Detected RedHat-based Linux distribution, using .rpm package");
+                    return `${baseUrl}/stremio-service_x86_64.rpm`;
+                } else {
+                    // Fallback to Debian package
+                    this.logger.info("Unknown Linux distribution, defaulting to .deb package");
+                    return `${baseUrl}/stremio-service_amd64.deb`;
+                }
+                
+            default:
+                this.logger.error(`Unsupported platform: ${platform}`);
+                return null;
+        }
+    }
+    
+    /**
+     * Detect Linux distribution type
+     */
+    private static async detectLinuxDistribution(): Promise<string> {
+        if (process.platform !== "linux") return "unknown";
+        
+        try {
+            // Try to read /etc/os-release (standard on modern Linux systems)
+            if (existsSync("/etc/os-release")) {
+                const osRelease = readFileSync("/etc/os-release", "utf-8");
+                const idMatch = osRelease.match(/^ID=(.+)$/m);
+                const idLikeMatch = osRelease.match(/^ID_LIKE=(.+)$/m);
+                
+                if (idMatch) {
+                    const id = idMatch[1].trim().replace(/"/g, "").toLowerCase();
+                    
+                    // Debian-based distributions
+                    if (id === "debian" || id === "ubuntu" || id === "linuxmint" || id === "pop" || id === "elementary") {
+                        return "debian";
+                    }
+                    
+                    // RedHat-based distributions
+                    if (id === "fedora" || id === "rhel" || id === "centos" || id === "rocky" || id === "almalinux" || id === "opensuse") {
+                        return "redhat";
+                    }
+                }
+                
+                if (idLikeMatch) {
+                    const idLike = idLikeMatch[1].trim().replace(/"/g, "").toLowerCase();
+                    
+                    if (idLike.includes("debian") || idLike.includes("ubuntu")) {
+                        return "debian";
+                    }
+                    if (idLike.includes("fedora") || idLike.includes("rhel") || idLike.includes("suse")) {
+                        return "redhat";
+                    }
+                }
+            }
+            
+            // Fallback: Check if package managers exist
+            // Check if dpkg exists (Debian-based)
+            try {
+                await this.execFileAsync("dpkg", ["--version"]);
+                return "debian";
+            } catch {
+                // Check if rpm exists (RedHat-based)
+                try {
+                    await this.execFileAsync("rpm", ["--version"]);
+                    return "redhat";
+                } catch {
+                    // Check if pacman exists (Arch-based, but we'll default to Debian)
+                    try {
+                        await this.execFileAsync("pacman", ["--version"]);
+                        return "debian"; // Arch can use .deb with dpkg tools
+                    } catch {
+                        return "unknown";
+                    }
+                }
+            }
+        } catch (error) {
+            this.logger.warn(`Failed to detect Linux distribution: ${(error as Error).message}`);
+            // Default to Debian as it's more common
+            return "unknown";
+        }
     }
     
     private static async downloadFile(url: string, dest: string): Promise<void> {
@@ -224,9 +363,19 @@ class StremioService {
 
         if (platform === "linux") {
             return new Promise(resolve => {
-                execFile("flatpak", ["ps"], (err, stdout) => {
-                    if (!err && stdout.includes("com.stremio.Service")) return resolve(true);
-                    resolve(false);
+                // Check if running via system installation (process name)
+                execFile("pgrep", ["-f", "stremio-service"], (err) => {
+                    if (!err) {
+                        return resolve(true);
+                    }
+                    
+                    // Check if running via Flatpak
+                    execFile("flatpak", ["ps"], (err2, stdout) => {
+                        if (!err2 && stdout && stdout.includes("com.stremio.Service")) {
+                            return resolve(true);
+                        }
+                        resolve(false);
+                    });
                 });
             });
         }
@@ -243,12 +392,52 @@ class StremioService {
             case "darwin":
                 return existsSync("/Applications/StremioService.app/Contents/MacOS/stremio-service");
             case "linux":
+                // Check if installed via Flatpak
                 try {
                     const { stdout } = await this.execFileAsync("flatpak", ["info", "com.stremio.Service"]);
-                    return stdout.includes("com.stremio.Service");
+                    if (stdout.includes("com.stremio.Service")) {
+                        return true;
+                    }
                 } catch {
-                    return false;
+                    // Not installed via Flatpak, continue checking other methods
                 }
+                
+                // Check if installed via .deb/.rpm (system installation)
+                // Stremio Service might be installed in common locations
+                const commonPaths = [
+                    "/usr/bin/stremio-service",
+                    "/usr/local/bin/stremio-service",
+                    "/opt/stremio-service/stremio-service",
+                    "/usr/lib/stremio-service/stremio-service"
+                ];
+                
+                for (const path of commonPaths) {
+                    if (existsSync(path)) {
+                        return true;
+                    }
+                }
+                
+                // Check if installed via dpkg (Debian-based)
+                try {
+                    const { stdout } = await this.execFileAsync("dpkg", ["-l", "stremio-service"]);
+                    if (stdout.includes("stremio-service")) {
+                        return true;
+                    }
+                } catch {
+                    // Not installed via dpkg
+                }
+                
+                // Check if installed via rpm (RedHat-based)
+                try {
+                    const { stdout } = await this.execFileAsync("rpm", ["-q", "stremio-service"]);
+                    if (stdout.includes("stremio-service")) {
+                        return true;
+                    }
+                } catch {
+                    // Not installed via rpm
+                }
+                
+                return false;
             default:
                 return false;
         }
@@ -301,22 +490,76 @@ class StremioService {
     
     private static async installLinux(filePath: string) {
         try {
-            await this.execFileAsync("flatpak", [
-                "remote-add",
-                "--if-not-exists",
-                "flathub",
-                "https://dl.flathub.org/repo/flathub.flatpakrepo"
-            ]).catch(() => {});
+            const fileName = basename(filePath);
+            const isDeb = fileName.endsWith(".deb");
+            const isRpm = fileName.endsWith(".rpm");
+            const isFlatpak = fileName.endsWith(".flatpak");
+            
+            if (isDeb) {
+                // Install Debian package using dpkg or apt
+                this.logger.info(`Installing Debian package: ${fileName}`);
+                
+                // Try using apt first (better dependency handling), fallback to dpkg
+                try {
+                    await this.execFileAsync("sudo", ["apt", "install", "-y", filePath]);
+                    this.logger.info("Stremio Service installed using apt");
+                } catch (aptError) {
+                    this.logger.warn(`apt install failed, trying dpkg: ${(aptError as Error).message}`);
+                    try {
+                        await this.execFileAsync("sudo", ["dpkg", "-i", filePath]);
+                        // Fix any dependency issues
+                        await this.execFileAsync("sudo", ["apt", "install", "-f", "-y"]).catch(() => {});
+                        this.logger.info("Stremio Service installed using dpkg");
+                    } catch (dpkgError) {
+                        throw new Error(`Failed to install .deb package: ${(dpkgError as Error).message}`);
+                    }
+                }
+            } else if (isRpm) {
+                // Install RedHat package using rpm or dnf/yum
+                this.logger.info(`Installing RPM package: ${fileName}`);
+                
+                // Try using dnf/yum first (better dependency handling), fallback to rpm
+                try {
+                    // Check if dnf exists, otherwise use yum
+                    try {
+                        await this.execFileAsync("dnf", ["--version"]);
+                        await this.execFileAsync("sudo", ["dnf", "install", "-y", filePath]);
+                        this.logger.info("Stremio Service installed using dnf");
+                    } catch {
+                        await this.execFileAsync("sudo", ["yum", "install", "-y", filePath]);
+                        this.logger.info("Stremio Service installed using yum");
+                    }
+                } catch (yumError) {
+                    this.logger.warn(`dnf/yum install failed, trying rpm: ${(yumError as Error).message}`);
+                    try {
+                        await this.execFileAsync("sudo", ["rpm", "-i", "--nodeps", filePath]);
+                        this.logger.info("Stremio Service installed using rpm");
+                    } catch (rpmError) {
+                        throw new Error(`Failed to install .rpm package: ${(rpmError as Error).message}`);
+                    }
+                }
+            } else if (isFlatpak) {
+                // Fallback to Flatpak installation
+                this.logger.info(`Installing Flatpak package: ${fileName}`);
+                await this.execFileAsync("flatpak", [
+                    "remote-add",
+                    "--if-not-exists",
+                    "flathub",
+                    "https://dl.flathub.org/repo/flathub.flatpakrepo"
+                ]).catch(() => {});
 
-            try {
-                await this.execFileAsync("flatpak", ["info", "org.freedesktop.Platform//24.08"]);
-            } catch {
-                this.logger.info("Installing Flatpak runtime org.freedesktop.Platform//24.08...");
-                await this.execFileAsync("flatpak", ["install", "-y", "flathub", "org.freedesktop.Platform//24.08"]);
+                try {
+                    await this.execFileAsync("flatpak", ["info", "org.freedesktop.Platform//24.08"]);
+                } catch {
+                    this.logger.info("Installing Flatpak runtime org.freedesktop.Platform//24.08...");
+                    await this.execFileAsync("flatpak", ["install", "-y", "flathub", "org.freedesktop.Platform//24.08"]);
+                }
+
+                await this.execFileAsync("flatpak", ["install", "--user", "-y", filePath]);
+                this.logger.info("Stremio Service installed using Flatpak");
+            } else {
+                throw new Error(`Unsupported Linux package format: ${fileName}`);
             }
-
-            this.logger.info(`Installing Stremio Service from ${filePath}`);
-            await this.execFileAsync("flatpak", ["install", "--user", "-y", filePath]);
 
             const success = await this.waitForInstallCompletion(TIMEOUTS.INSTALL_COMPLETION, filePath);
 
@@ -326,7 +569,8 @@ class StremioService {
                 this.logger.warn("Installation timeout or failed to detect Stremio Service.");
             }
         } catch (err) {
-            this.logger.error(`Flatpak install failed: ${err}`);
+            this.logger.error(`Linux package install failed: ${(err as Error).message}`);
+            throw err; // Re-throw to be caught by the caller
         }
     }
     
