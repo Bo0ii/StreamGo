@@ -120,6 +120,12 @@
 				}
 			]
 		},
+		"nsis": {
+			"oneClick": true,
+			"perMachine": false,
+			"allowElevation": true,
+			"deleteAppDataOnUninstall": false
+		},
 		"mac": {
 			"target": "dmg",
 			"icon": "images/icons/main.png",

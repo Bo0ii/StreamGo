@@ -1,6 +1,6 @@
 import { getLogger } from "./logger";
 import { basename, dirname, join, resolve } from "path";
-import { existsSync, createWriteStream, unlinkSync, readFileSync } from "fs";
+import { existsSync, createWriteStream, unlinkSync, readFileSync, chmodSync } from "fs";
 import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import * as process from 'process';
@@ -29,6 +29,33 @@ class StremioService {
     private static appStartedService: boolean = false;
     private static servicePid: number | null = null;
     private static usingBundledService: boolean = false;
+
+    /**
+     * Ensures bundled binaries have executable permissions on Unix systems.
+     * This is necessary because Git may not preserve execute bits on macOS/Linux.
+     */
+    private static ensureExecutablePermissions(executablePath: string): void {
+        if (process.platform === "win32") return; // Windows doesn't need chmod
+
+        try {
+            const dir = dirname(executablePath);
+            // Make main executable runnable
+            chmodSync(executablePath, 0o755);
+            this.logger.info(`Set execute permission on: ${executablePath}`);
+
+            // Also chmod companion binaries in same directory
+            const companions = ["ffmpeg", "ffprobe", "stremio-runtime"];
+            for (const binary of companions) {
+                const binaryPath = join(dir, binary);
+                if (existsSync(binaryPath)) {
+                    chmodSync(binaryPath, 0o755);
+                    this.logger.info(`Set execute permission on: ${binaryPath}`);
+                }
+            }
+        } catch (error) {
+            this.logger.warn(`Failed to set executable permissions: ${(error as Error).message}`);
+        }
+    }
 
     /**
      * Gets the path to the bundled Stremio Service in app resources
@@ -125,6 +152,8 @@ class StremioService {
                     workingDir = dirname(bundledPath);
                     this.logger.info(`Service working directory: ${workingDir}`);
                     this.usingBundledService = true;
+                    // Ensure bundled binaries have execute permission on Unix systems
+                    this.ensureExecutablePermissions(bundledPath);
                 }
 
                 switch (process.platform) {
