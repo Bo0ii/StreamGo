@@ -14,6 +14,7 @@ CLAUDE.md
 claude/
 .claude/
 todo.md
+.mcp.json
 
 # OS-specific files
 .DS_Store
