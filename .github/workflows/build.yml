@@ -11,6 +11,8 @@ jobs:
   build:
     name: Build ${{ matrix.target }} - ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
@@ -74,7 +76,9 @@ jobs:
           PYTHON: python3
 
       - name: Build for production with electron-builder
-        run: npm run build:${{ matrix.target }}:${{ matrix.arch }}
+        run: npm run build:${{ matrix.target }}:${{ matrix.arch }} -- --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Debug: List release-builds directory"
         run: |
