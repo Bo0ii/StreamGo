@@ -19,6 +19,8 @@ interface MetaData {
     license?: string;
     /** Homepage/documentation URL (optional) */
     homepage?: string;
+    /** Whether this mod is locked and cannot be removed (optional) */
+    locked?: boolean;
 }
 
 export default MetaData;

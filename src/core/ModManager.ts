@@ -117,6 +117,9 @@ class ModManager {
         return filePath;
     }
 
+    // Theme that cannot be removed (core StreamGo experience)
+    private static LOCKED_THEME = "liquid-glass.theme.css";
+
     /**
      * Remove a mod file and clean up associated state
      */
@@ -137,6 +140,11 @@ class ModManager {
                 }
                 break;
             case "theme":
+                // Prevent removing the locked default theme
+                if (fileName === this.LOCKED_THEME) {
+                    this.logger.info(`Theme ${fileName} is locked and cannot be removed`);
+                    return;
+                }
                 if (this.isThemeInstalled(fileName)) {
                     if (localStorage.getItem(STORAGE_KEYS.CURRENT_THEME) === fileName) {
                         localStorage.setItem(STORAGE_KEYS.CURRENT_THEME, "Default");
@@ -146,6 +154,13 @@ class ModManager {
                 }
                 break;
         }
+    }
+
+    /**
+     * Check if a theme is the locked default theme
+     */
+    public static isLockedTheme(fileName: string): boolean {
+        return fileName === this.LOCKED_THEME;
     }
 
     public static isThemeInstalled(fileName: string): boolean {

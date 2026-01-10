@@ -550,17 +550,18 @@ window.addEventListener("load", async () => {
         // Only create sections if they don't exist yet
         if (!sectionsAlreadyExist) {
             // Get plugins asynchronously (non-blocking)
-            // NOTE: themesList removed - theme is locked to liquid-glass
             const modLists = await getModListsAsync();
+            const themesList = modLists.themes;
             const pluginsList = modLists.plugins;
 
             logger.info("Adding 'Plus' sections...");
             Settings.addSection("enhanced", "Plus");
-            // NOTE: Themes category removed - liquid-glass theme is locked as the core StreamGo experience
+            Settings.addCategory("Themes", "enhanced", getThemeIcon());
             Settings.addCategory("Plugins", "enhanced", getPluginIcon());
             Settings.addCategory("Tweaks", "enhanced", getTweaksIcon());
             Settings.addCategory("About", "enhanced", getAboutIcon());
 
+            Settings.addButton("Open Themes Folder", "openthemesfolderBtn", SELECTORS.THEMES_CATEGORY);
             Settings.addButton("Open Plugins Folder", "openpluginsfolderBtn", SELECTORS.PLUGINS_CATEGORY);
 
             writeAbout();
@@ -568,7 +569,28 @@ window.addEventListener("load", async () => {
             writeTweaks();
             writeStreamingPerformance();
 
-            // NOTE: Theme selection UI removed - liquid-glass theme is locked
+            // Add themes to settings (liquid-glass is locked and can't be removed)
+            const LOCKED_THEME = "liquid-glass.theme.css";
+            themesList.forEach(theme => {
+                // Check user path first, then bundled path
+                const userPath = join(properties.themesPath, theme);
+                const bundledPath = join(properties.bundledThemesPath, theme);
+                const themePath = existsSync(userPath) ? userPath : bundledPath;
+
+                const metaData = Helpers.extractMetadataFromFile(themePath);
+                if (metaData && metaData.name && metaData.description && metaData.author && metaData.version) {
+                    // Add locked flag for the glass theme
+                    const isLocked = theme === LOCKED_THEME;
+                    Settings.addItem("theme", theme, {
+                        name: metaData.name,
+                        description: metaData.description,
+                        author: metaData.author,
+                        version: metaData.version,
+                        updateUrl: metaData.updateUrl,
+                        locked: isLocked
+                    });
+                }
+            });
 
             // Add plugins to settings grouped by author
             interface PluginData {
@@ -2021,7 +2043,12 @@ async function handleExternalPlayerInterception(): Promise<void> {
     history.back();
 }
 
-// Icon SVGs (getThemeIcon removed - theme UI is locked)
+// Icon SVGs
+
+function getThemeIcon(): string {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon">
+        <path d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c1.38 0 2.5-1.12 2.5-2.5 0-.61-.23-1.2-.64-1.67-.08-.1-.13-.21-.13-.33 0-.28.22-.5.5-.5H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9zM5.5 12c-.83 0-1.5-.67-1.5-1.5S4.67 9 5.5 9 7 9.67 7 10.5 6.33 12 5.5 12zm3-4C7.67 8 7 7.33 7 6.5S7.67 5 8.5 5s1.5.67 1.5 1.5S9.33 8 8.5 8zm7 0c-.83 0-1.5-.67-1.5-1.5S14.67 5 15.5 5s1.5.67 1.5 1.5S16.33 8 15.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S17.67 9 18.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="currentcolor"></path></svg>`;
+}
 
 function getPluginIcon(): string {
     return `<svg icon="addons-outline" class="icon" viewBox="0 0 512 512" style="fill: currentcolor;">
