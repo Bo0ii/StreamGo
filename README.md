@@ -1,18 +1,18 @@
 <p align="center">
 	<a href="https://stremio.com/">
-		<img src="https://github.com/Bo0ii/StremGo/raw/main/images/icons/main.png" alt="StremGo Icon" width="128">
+		<img src="https://github.com/Bo0ii/StreamGo/raw/main/images/icons/main.png" alt="StreamGo Icon" width="128">
 	</a>
-	<h1 align="center">StremGo</h1>
+	<h1 align="center">StreamGo</h1>
 	<h5 align="center">This is a community project and is <b>NOT</b> affiliated with Stremio in any way.</h5>
 	<p align="center">
-		<a href="https://github.com/Bo0ii/StremGo/releases/latest">
-			<img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/Bo0ii/StremGo/total?style=for-the-badge&color=%237B5BF5">
+		<a href="https://github.com/Bo0ii/StreamGo/releases/latest">
+			<img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/Bo0ii/StreamGo/total?style=for-the-badge&color=%237B5BF5">
 		</a>
-		<a href="https://github.com/Bo0ii/StremGo/stargazers">
-			<img src="https://img.shields.io/github/stars/Bo0ii/StremGo.svg?style=for-the-badge&color=%237B5BF5" alt="stargazers">
+		<a href="https://github.com/Bo0ii/StreamGo/stargazers">
+			<img src="https://img.shields.io/github/stars/Bo0ii/StreamGo.svg?style=for-the-badge&color=%237B5BF5" alt="stargazers">
 		</a>
-		<a href="https://github.com/Bo0ii/StremGo/releases/latest">
-			<img src="https://img.shields.io/github/v/release/Bo0ii/StremGo?label=Latest%20Release&style=for-the-badge&color=%237B5BF5" alt="Latest Version">
+		<a href="https://github.com/Bo0ii/StreamGo/releases/latest">
+			<img src="https://img.shields.io/github/v/release/Bo0ii/StreamGo?label=Latest%20Release&style=for-the-badge&color=%237B5BF5" alt="Latest Version">
 		</a>
 		<br>
 		<a href="https://nodejs.org/">
@@ -35,7 +35,7 @@
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)
-- [What is StremGo?](#what-is-stremio-plus)
+- [What is StreamGo?](#what-is-streamgo)
 	- [How It Works](#how-it-works)
 	- [Features](#features)
 - [Downloads](#downloads)
@@ -49,9 +49,9 @@
 - [Known Issues](#known-issues)
 - [Important Notice](#important-notice)
 
-## What is StremGo?
+## What is StreamGo?
 
-StremGo is an Electron-based [Stremio](https://www.stremio.com/) desktop client with support for plugins and themes. It enhances the default Stremio experience by adding more customization options and integrations.
+StreamGo is an Electron-based [Stremio](https://www.stremio.com/) desktop client with support for plugins and themes. It enhances the default Stremio experience by adding more customization options and integrations.
 
 ### How It Works
 - It runs the Stremio streaming server automatically in the background.
@@ -63,11 +63,11 @@ StremGo is an Electron-based [Stremio](https://www.stremio.com/) desktop client 
 - **Built-in Toggleable Discord Rich Presence** - Show what you're watching on Discord with an easy-to-toggle Rich Presence feature.
 
 ## Downloads
-You can download the latest version from [the releases tab](https://github.com/Bo0ii/StremGo/releases).
+You can download the latest version from [the releases tab](https://github.com/Bo0ii/StreamGo/releases).
 
 ## Build From Source
-1. Clone the repository: `git clone https://github.com/Bo0ii/StremGo.git`
-2. Navigate to the project directory: `cd StremGo`
+1. Clone the repository: `git clone https://github.com/Bo0ii/StreamGo.git`
+2. Navigate to the project directory: `cd StreamGo`
 3. Install dependencies: `npm install`
 4. Build the project with electron-builder:
     - For Windows: `npm run build:win`
@@ -82,14 +82,14 @@ You can download the latest version from [the releases tab](https://github.com/B
 1. Go to the settings and scroll down.
 2. Click on the "OPEN THEMES FOLDER" button.
 3. Move your theme into the opened folder.
-4. Restart StremGo.
+4. Restart StreamGo.
 5. You should see your theme in the settings with an option to apply it.
 
 ### Installing Plugins
 1. Go to the settings and scroll down.
 2. Click on the "OPEN PLUGINS FOLDER" button.
 3. Move your plugin into the opened folder.
-4. Restart StremGo or reload using <kbd>Ctrl</kbd> + <kbd>R</kbd>
+4. Restart StreamGo or reload using <kbd>Ctrl</kbd> + <kbd>R</kbd>
 5. You should see your plugin in the settings with an option to enable it.
 
 ## What Is the Difference Between Plugins and Addons?

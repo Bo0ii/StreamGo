@@ -17,7 +17,7 @@ import Helpers from "./utils/Helpers";
 import StremioService from "./utils/StremioService";
 import ExternalPlayer from "./utils/ExternalPlayer";
 
-app.setName("stremgo");
+app.setName("streamgo");
 
 let mainWindow: BrowserWindow | null;
 const transparencyFlagPath = join(app.getPath("userData"), "transparency");
@@ -340,7 +340,7 @@ async function chooseStreamingServer() {
     const result = await Helpers.showAlert(
         "info",
         "Stremio Streaming Server",
-        "StremGo requires a Stremio Streaming Server for playback to function properly. You can either use the Stremio Service or set up a local streaming server manually.\nThis is a one-time setup. The option you choose will be saved for future app launches.\n\n" +
+        "StreamGo requires a Stremio Streaming Server for playback to function properly. You can either use the Stremio Service or set up a local streaming server manually.\nThis is a one-time setup. The option you choose will be saved for future app launches.\n\n" +
         "Would you like to use the Stremio Service for streaming?\n\n" +
         "Click 'No' to attempt using server.js directly",
         ["Yes, use Stremio Service (recommended on Windows)", "No, use server.js directly (manual setup required)"]

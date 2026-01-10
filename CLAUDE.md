@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-StremGo is an Electron-based desktop client that wraps the Stremio web player (https://web.stremio.com/) and adds plugin/theme support, Discord Rich Presence, and other enhancements. It is NOT affiliated with official Stremio.
+StreamGo is an Electron-based desktop client that wraps the Stremio web player (https://web.stremio.com/) and adds plugin/theme support, Discord Rich Presence, and other enhancements. It is NOT affiliated with official Stremio.
 
 ## Commands
 
@@ -51,7 +51,7 @@ HTML templates are copied from `src/components/` to `dist/components/` via `copy
 - Both use JSDoc metadata: `@name`, `@description`, `@version`, `@author`, `@updateUrl`
 - **User mods**: Stored in platform-specific config directory (see `Properties.ts`)
 - **Bundled mods**: Shipped with app in `plugins/` and `themes/` root directories, copied to `dist/` at build time
-- Community registry: https://github.com/Bo0ii/StremGo (registry.json)
+- Community registry: https://github.com/Bo0ii/StreamGo (registry.json)
 
 ### IPC Communication
 Channels defined in `constants/index.ts`: window controls, transparency, update checks, fullscreen state. Main<->Renderer communication uses Electron IPC.

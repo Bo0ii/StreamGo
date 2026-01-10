@@ -1,5 +1,5 @@
 /**
- * Centralized constants for StremGo
+ * Centralized constants for StreamGo
  * Using constants instead of magic strings improves maintainability
  */
 
@@ -19,7 +19,7 @@ export const SELECTORS = {
     NAV_MENU: '.menu-xeE06',                               // Navigation menu container
     SETTINGS_CONTENT: '.settings-content-co5eU',           // Settings content panel
 
-    // Enhanced (StremGo) section - these are stable IDs we control
+    // Enhanced (StreamGo) section - these are stable IDs we control
     ENHANCED_SECTION: '#enhanced',
     THEMES_CATEGORY: '#enhanced > div:nth-child(2)',       // Our Themes category
     PLUGINS_CATEGORY: '#enhanced > div:nth-child(3)',      // Our Plugins category
@@ -127,9 +127,9 @@ export const FILE_EXTENSIONS = {
 export const URLS = {
     STREMIO_WEB: 'https://web.stremio.com/',
     REGISTRY: 'https://raw.githubusercontent.com/REVENGE977/stremio-enhanced-registry/main/registry.json',
-    VERSION_CHECK: 'https://github.com/Bo0ii/StremGo/raw/main/version',
-    RELEASES_API: 'https://api.github.com/repos/Bo0ii/StremGo/releases/latest',
-    RELEASES_PAGE: 'https://github.com/Bo0ii/StremGo/releases/latest',
+    VERSION_CHECK: 'https://github.com/Bo0ii/StreamGo/raw/main/version',
+    RELEASES_API: 'https://api.github.com/repos/Bo0ii/StreamGo/releases/latest',
+    RELEASES_PAGE: 'https://github.com/Bo0ii/StreamGo/releases/latest',
 } as const;
 
 // server.js (Stremio streaming server) Download URL

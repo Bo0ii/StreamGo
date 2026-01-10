@@ -1,7 +1,7 @@
 "use strict";
 /**
 * @name AniSkip
-* @description Integrates AniSkip to StremGo to skip anime openings and endings (Only works with kitsu). Please note that this is still expiremental.
+ * @description Integrates AniSkip to StreamGo to skip anime openings and endings (Only works with kitsu). Please note that this is still expiremental.
 * @updateUrl https://raw.githubusercontent.com/REVENGE977/stremio-aniskip/main/dist/AniSkip.plugin.js
 * @version 1.0.0
 * @author REVENGE977
@@ -499,7 +499,7 @@ function convertSecondsToMMSSMS(seconds) {
 function _eval(js) {
     return new Promise((resolve, reject) => {
         try {
-            const eventName = 'stremgo';
+            const eventName = 'streamgo';
             const script = document.createElement('script');
             window.addEventListener(eventName, (data) => {
                 script.remove();

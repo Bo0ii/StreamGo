@@ -10,7 +10,7 @@ class Properties {
             ? join(homedir(), "Library", "Application Support")
             : join(homedir(), ".config");
 
-    public static enhancedPath = join(Properties.baseDataPath, "stremgo");
+    public static enhancedPath = join(Properties.baseDataPath, "streamgo");
 
     // User-installed plugins/themes (in user config directory)
     public static themesPath = join(Properties.enhancedPath, "themes");

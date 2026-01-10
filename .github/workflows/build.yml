@@ -25,6 +25,9 @@ jobs:
           - os: windows-latest
             target: win
             arch: x64
+          - os: windows-latest
+            target: win
+            arch: arm64
 
 
     steps:
@@ -53,7 +56,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install --no-optional
+          npm install
           npm install -g @electron/rebuild
 
       - name: Manually install dmg-license (macOS only)
@@ -65,9 +68,6 @@ jobs:
           npx @electron/rebuild -f
         env:
           PYTHON: python3
-
-      - name: Build the app
-        run: npm run dist
 
       - name: Build for production with electron-builder
         run: npm run build:${{ matrix.target }}:${{ matrix.arch }}
@@ -132,7 +132,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path prepared-artifacts | Out-Null
           
-          # Move setup files (.exe, .blockmap)
+          # Move all setup files (.exe, .blockmap)
+          # electron-builder creates architecture-specific builds, so all files are relevant
           Get-ChildItem -Path "release-builds" -Filter "*.exe" | ForEach-Object {
               Move-Item $_.FullName -Destination "prepared-artifacts/" -Force
           }
@@ -140,18 +141,30 @@ jobs:
               Move-Item $_.FullName -Destination "prepared-artifacts/" -Force
           }
           
-          # Compress unpacked folders
-          if (Test-Path "release-builds/win-unpacked") {
-              Compress-Archive -Path "release-builds/win-unpacked\*" -DestinationPath "prepared-artifacts/win-unpacked-${{ matrix.arch }}.zip" -Force
+          # Compress unpacked folders based on architecture
+          if ("${{ matrix.arch }}" -eq "x64" -and (Test-Path "release-builds/win-unpacked")) {
+              Compress-Archive -Path "release-builds/win-unpacked\*" -DestinationPath "prepared-artifacts/win-unpacked-x64.zip" -Force
           }
-          if (Test-Path "release-builds/win-arm64-unpacked") {
+          if ("${{ matrix.arch }}" -eq "arm64" -and (Test-Path "release-builds/win-arm64-unpacked")) {
               Compress-Archive -Path "release-builds/win-arm64-unpacked\*" -DestinationPath "prepared-artifacts/win-arm64-unpacked.zip" -Force
           }
 
-      - name: Move artifacts to release directory
+      - name: Move artifacts to release directory (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           mkdir -p release-artifacts
-          mv prepared-artifacts/* release-artifacts/
+          if [ -d prepared-artifacts ] && [ "$(ls -A prepared-artifacts 2>/dev/null)" ]; then
+            mv prepared-artifacts/* release-artifacts/ || true
+          fi
+
+      - name: Move artifacts to release directory (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-artifacts | Out-Null
+          if (Test-Path "prepared-artifacts") {
+            Get-ChildItem -Path "prepared-artifacts" | Move-Item -Destination "release-artifacts" -Force
+          }
 
       - name: Upload setup files
         uses: actions/upload-artifact@v4
@@ -177,14 +190,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Create Git tag
+      - name: Get version and create tag
         run: |
-          TAG_NAME="v$(date +'%Y%m%d%H%M%S')"
-          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          VERSION=$(node -p "require('./package.json').version")
+          TAG_NAME="v${VERSION}"
+          TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+          
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git tag $TAG_NAME
           git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}
+          git fetch --tags
+          
+          # Check if tag already exists, if so append timestamp
+          if git ls-remote --tags origin "$TAG_NAME" 2>/dev/null | grep -q "refs/tags/$TAG_NAME"; then
+            echo "Tag $TAG_NAME already exists. Appending timestamp."
+            TAG_NAME="${TAG_NAME}-${TIMESTAMP}"
+          fi
+          
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          echo "Creating tag: $TAG_NAME"
+          
+          git tag $TAG_NAME
           git push origin $TAG_NAME
 
       - name: Download all artifacts

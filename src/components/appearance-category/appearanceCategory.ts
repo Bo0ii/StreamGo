@@ -201,8 +201,8 @@ function applyAccentColor(color: string): void {
 		[class*="action"]:hover {
 			color: ${color} !important;
 		}
-		/* About StremGo card - dynamic accent color */
-		.about-stremgo-card {
+		/* About StreamGo card - dynamic accent color */
+		.about-streamgo-card {
 			background: ${hexToRgba(color, 0.1)} !important;
 			border: 1px solid ${hexToRgba(color, 0.2)} !important;
 		}

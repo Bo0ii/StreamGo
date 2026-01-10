@@ -2,7 +2,7 @@
  * @name Scroll Arrows
  * @description Adds Netflix-style left/right scroll arrows to horizontal content rows.
  * @version 1.2.0
- * @author StremGo
+ * @author StreamGo
  */
 
 (function() {

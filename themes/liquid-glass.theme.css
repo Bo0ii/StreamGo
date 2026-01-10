@@ -2299,8 +2299,8 @@ body.performance-mode .side-drawer-r9EuA.side-drawer-layer-CZtJ1 {
     opacity: 0 !important;
 }
 
-/* Style for the custom StremGo logo that will be injected via JS */
-.stremgo-intro-logo {
+/* Style for the custom StreamGo logo that will be injected via JS */
+.streamgo-intro-logo {
     width: 100px !important;
     height: 100px !important;
     object-fit: contain !important;
@@ -2309,7 +2309,7 @@ body.performance-mode .side-drawer-r9EuA.side-drawer-layer-CZtJ1 {
 }
 
 /* Container for the custom intro logo */
-.stremgo-intro-logo-container {
+.streamgo-intro-logo-container {
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;

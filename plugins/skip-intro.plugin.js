@@ -1,6 +1,6 @@
 /**
  * @name SkipIntro
- * @description Skip Intro for shows and movies in StremGo
+ * @description Skip Intro for shows and movies in StreamGo
  * @version 1.1.0
  * @author shugi12345
  */
@@ -626,7 +626,7 @@
   }
   function _eval(js) {
     return new Promise((resolve) => {
-      const event = "stremgo";
+      const event = "streamgo";
       const script = document.createElement("script");
       window.addEventListener(event, (e) => {
         script.remove();

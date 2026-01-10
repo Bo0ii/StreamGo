@@ -431,7 +431,7 @@ window.addEventListener("load", async () => {
         injectPluginGroupStyles();
         setupCollapsibleHandlers();
 
-        // Browse plugins/themes from StremGo registry
+        // Browse plugins/themes from StreamGo registry
         setupBrowseModsButton();
         
         // Check for updates button
@@ -1020,7 +1020,7 @@ function injectAppIconInGlassTheme(): void {
         // Create and inject the icon as an actual img element
         const iconElement = document.createElement('img');
         iconElement.src = iconUrl;
-        iconElement.alt = 'StremGo';
+        iconElement.alt = 'StreamGo';
         iconElement.classList.add('app-icon-glass-theme');
         iconElement.id = 'glass-theme-app-icon-' + Date.now(); // Unique ID to allow multiple instances
         iconElement.style.width = '18px';
@@ -1099,7 +1099,7 @@ function injectAppIconInGlassTheme(): void {
     });
 }
 
-// Inject custom StremGo logo on intro/login/signup pages
+// Inject custom StreamGo logo on intro/login/signup pages
 function injectIntroLogo(): void {
     const isPackaged = __dirname.includes("app.asar");
     let logoPath: string;
@@ -1137,7 +1137,7 @@ function injectIntroLogo(): void {
         if (!introContainer) return;
 
         // Check if logo is already injected
-        if (document.querySelector('.stremgo-intro-logo')) return;
+        if (document.querySelector('.streamgo-intro-logo')) return;
 
         // Find and hide the old logo
         const oldLogoSelectors = [
@@ -1152,7 +1152,7 @@ function injectIntroLogo(): void {
         for (const selector of oldLogoSelectors) {
             const oldLogos = introContainer.querySelectorAll(selector);
             oldLogos.forEach(oldLogo => {
-                if (oldLogo && !oldLogo.classList.contains('stremgo-intro-logo')) {
+                if (oldLogo && !oldLogo.classList.contains('streamgo-intro-logo')) {
                     (oldLogo as HTMLElement).style.display = 'none';
                 }
             });
@@ -1161,8 +1161,8 @@ function injectIntroLogo(): void {
         // Create and inject new logo
         const logoElement = document.createElement('img');
         logoElement.src = logoUrl;
-        logoElement.alt = 'StremGo';
-        logoElement.classList.add('stremgo-intro-logo');
+        logoElement.alt = 'StreamGo';
+        logoElement.classList.add('streamgo-intro-logo');
 
         // Find the best place to insert the logo (usually at the top of the intro container)
         const logoContainerSelectors = [
@@ -1184,7 +1184,7 @@ function injectIntroLogo(): void {
             introContainer.prepend(logoElement);
         }
 
-        logger.info("StremGo intro logo injected: " + logoUrl);
+        logger.info("StreamGo intro logo injected: " + logoUrl);
     };
 
     // Try immediately

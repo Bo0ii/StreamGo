@@ -104,7 +104,7 @@ class StreamingServer {
             const file = createWriteStream(dest);
 
             const request = (downloadUrl: string) => {
-                https.get(downloadUrl, { headers: { "User-Agent": "StremGo" } }, (res) => {
+                https.get(downloadUrl, { headers: { "User-Agent": "StreamGo" } }, (res) => {
                     // Handle redirects (GitHub releases use redirects)
                     if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
                         const redirectUrl = new URL(res.headers.location, downloadUrl).toString();

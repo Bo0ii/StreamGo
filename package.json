@@ -1,5 +1,5 @@
 {
-	"name": "stremgo",
+	"name": "streamgo",
 	"version": "1.0.2",
 	"description": "Electron-based Stremio client with plugins and themes support.",
 	"main": "./dist/main.js",
@@ -17,7 +17,7 @@
 		"build:win:arm64": "npm run dist && electron-builder --win --arm64 --x64=false",
 		"build:win": "npm run dist && electron-builder --win"
 	},
-	"repository": "https://github.com/Bo0ii/StremGo.git",
+	"repository": "https://github.com/Bo0ii/StreamGo.git",
 	"publish": {
 		"provider": "github",
 		"releaseType": "release"
@@ -58,8 +58,8 @@
 		"index.html"
 	],
 	"build": {
-		"appId": "com.bo0ii.stremgo",
-		"productName": "StremGo",
+		"appId": "com.bo0ii.streamgo",
+		"productName": "StreamGo",
 		"asar": true,
 		"icon": "images/icons/main.png",
 		"directories": {
@@ -86,7 +86,7 @@
 		"publish": {
 			"provider": "github",
 			"owner": "Bo0ii",
-			"repo": "StremGo"
+			"repo": "StreamGo"
 		},
 		"asarUnpack": [
 			"**/register-scheme/build/Release/*.node",

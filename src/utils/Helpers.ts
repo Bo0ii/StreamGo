@@ -191,7 +191,7 @@ class Helpers {
     public _eval(js: string): Promise<unknown> {
         return new Promise((resolve, reject) => {
             try {
-                const eventName = 'stremgo';
+                const eventName = 'streamgo';
                 const script = document.createElement('script');
                 
                 const handler = (data: Event) => {
