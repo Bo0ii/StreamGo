@@ -224,25 +224,36 @@ class Updater {
         // Find installer file matching platform and architecture
         const asset = release.assets.find((a: any) => {
             if (!pattern.test(a.name)) return false;
-            
+            const name = a.name.toLowerCase();
+
             // For Windows, prefer Setup.exe files (NSIS installer)
+            // Release naming: StreamGo.Setup.{version}.exe (no arch suffix)
             if (platform === "win32") {
-                return a.name.toLowerCase().includes("setup") && 
-                       (a.name.toLowerCase().includes(arch) || a.name.toLowerCase().includes("x64"));
+                return name.includes("setup") && !name.endsWith(".blockmap");
             }
-            
+
             // For macOS, check architecture
+            // Release naming: StreamGo-{version}.dmg (Intel) or StreamGo-{version}-arm64.dmg (ARM)
             if (platform === "darwin") {
-                return a.name.toLowerCase().includes(arch) || 
-                       (arch === "arm64" && a.name.toLowerCase().includes("universal"));
+                if (arch === "arm64") {
+                    return name.includes("arm64");
+                } else {
+                    // Intel/x64: match .dmg that does NOT contain arm64
+                    return !name.includes("arm64");
+                }
             }
-            
+
             // For Linux, check architecture
+            // Release naming: StreamGo-{version}.AppImage (x64) or StreamGo-{version}-arm64.AppImage (ARM)
             if (platform === "linux") {
-                return a.name.toLowerCase().includes(arch) || 
-                       a.name.toLowerCase().includes("x86_64");
+                if (arch === "arm64") {
+                    return name.includes("arm64");
+                } else {
+                    // x64: match .AppImage that does NOT contain arm64
+                    return !name.includes("arm64");
+                }
             }
-            
+
             return true;
         });
 

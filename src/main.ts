@@ -1,5 +1,6 @@
 import { join, basename } from "path";
 import { mkdirSync, existsSync, writeFileSync, unlinkSync } from "fs";
+import { execSync } from "child_process";
 import helpers from './utils/Helpers';
 import Updater from "./core/Updater";
 import Properties from "./core/Properties";
@@ -32,9 +33,23 @@ const transparencyEnabled = existsSync(transparencyFlagPath);
 // Optimized for smooth 144Hz+ scrolling/transitions
 // ============================================
 
+// Detect if running on modern Mac (Apple Silicon) for conditional GPU optimizations
+function isModernMac(): boolean {
+    if (process.platform !== "darwin") return false;
+    try {
+        // Check if Apple Silicon (M1/M2/M3/M4)
+        const cpuBrand = execSync("sysctl -n machdep.cpu.brand_string", { encoding: "utf8" });
+        return cpuBrand.includes("Apple");
+    } catch {
+        return false; // Unknown, use conservative settings
+    }
+}
+
+const useAggressiveGpuFlags = process.platform === "win32" || isModernMac();
+
 // Platform-specific rendering backend
 if (process.platform === "darwin") {
-    logger.info("Running on macOS, using Metal for rendering");
+    logger.info(`Running on macOS (${isModernMac() ? "Apple Silicon" : "Intel"}), using Metal for rendering`);
     app.commandLine.appendSwitch('use-angle', 'metal');
 } else if (process.platform === "win32") {
     logger.info("Running on Windows, using D3D11 for rendering");
@@ -44,28 +59,35 @@ if (process.platform === "darwin") {
     app.commandLine.appendSwitch('use-angle', 'gl');
 }
 
-// Force GPU acceleration - works on all GPUs
+// Force GPU acceleration - safe for all GPUs
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('force-high-performance-gpu');
 
-// Unlock frame rate for high refresh rate displays (144Hz+)
-app.commandLine.appendSwitch('disable-frame-rate-limit');
-app.commandLine.appendSwitch('disable-gpu-vsync');
+// High-refresh optimizations - only on Windows or modern Macs (Apple Silicon)
+if (useAggressiveGpuFlags) {
+    app.commandLine.appendSwitch('force-high-performance-gpu');
+    // Unlock frame rate for high refresh rate displays (144Hz+)
+    app.commandLine.appendSwitch('disable-frame-rate-limit');
+    app.commandLine.appendSwitch('disable-gpu-vsync');
+}
 
-// Rendering pipeline optimizations
+// Safe rendering pipeline optimizations (all platforms)
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('enable-gpu-compositing');
-app.commandLine.appendSwitch('enable-oop-rasterization');
 app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
 app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
-app.commandLine.appendSwitch('canvas-oop-rasterization');
-app.commandLine.appendSwitch('in-process-gpu');
-app.commandLine.appendSwitch('enable-hardware-overlays', 'single-fullscreen,single-on-top,underlay');
 
-// Smooth scrolling and animation optimizations
-app.commandLine.appendSwitch('enable-raw-draw');
+// Experimental flags - only on Windows or modern Macs
+if (useAggressiveGpuFlags) {
+    app.commandLine.appendSwitch('enable-oop-rasterization');
+    app.commandLine.appendSwitch('canvas-oop-rasterization');
+    app.commandLine.appendSwitch('in-process-gpu');
+    app.commandLine.appendSwitch('enable-hardware-overlays', 'single-fullscreen,single-on-top,underlay');
+    app.commandLine.appendSwitch('enable-raw-draw');
+}
+
+// Always safe optimizations
 app.commandLine.appendSwitch('disable-composited-antialiasing');
 app.commandLine.appendSwitch('gpu-rasterization-msaa-sample-count', '0');
 app.commandLine.appendSwitch('num-raster-threads', '4');

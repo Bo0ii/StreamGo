@@ -202,6 +202,14 @@ jobs:
           echo "Files in release-artifacts:"
           ls -la release-artifacts/ || echo "Directory is empty or doesn't exist"
 
+      - name: Generate checksums
+        run: |
+          cd release-artifacts
+          echo "Generating SHA256 checksums..."
+          sha256sum *.exe *.dmg *.AppImage 2>/dev/null | tee SHA256SUMS.txt || true
+          echo "Generated checksums:"
+          cat SHA256SUMS.txt
+
       - name: Upload GitHub Release
         uses: softprops/action-gh-release@v1
         with:
@@ -211,6 +219,7 @@ jobs:
             release-artifacts/*.blockmap
             release-artifacts/*.dmg
             release-artifacts/*.AppImage
+            release-artifacts/SHA256SUMS.txt
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

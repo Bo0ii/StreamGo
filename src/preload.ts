@@ -46,6 +46,10 @@ const observerHandlers: Map<string, ObserverHandler> = new Map();
 let unifiedObserver: MutationObserver | null = null;
 let observerRafId: number | null = null;
 
+// Initialization state flags to prevent duplicate initialization
+let settingsInitialized = false;
+let pluginsLoaded = false;
+
 function initUnifiedObserver(): void {
     if (unifiedObserver) return;
 
@@ -320,9 +324,12 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined') {
 
 // Initialize core functionality as soon as DOM is ready (faster than window.load)
 function initializeCoreFeatures(): void {
-    // Initialize user settings first (needed for theme and plugins)
-    initializeUserSettings();
-    
+    // Initialize user settings first (needed for theme and plugins) - only once
+    if (!settingsInitialized) {
+        initializeUserSettings();
+        settingsInitialized = true;
+    }
+
     // Apply theme immediately if not already applied
     if (!document.getElementById("activeTheme")) {
         applyUserTheme();
@@ -337,10 +344,14 @@ function initializeCoreFeatures(): void {
     // Apply UI tweaks - synchronous
     applyTweaks();
 
-    // Load enabled plugins asynchronously (non-blocking)
-    loadEnabledPlugins().catch(err => {
-        logger.error(`Failed to load plugins during core initialization: ${err}`);
-    });
+    // Load enabled plugins asynchronously (non-blocking) - only once
+    if (!pluginsLoaded) {
+        pluginsLoaded = true;
+        loadEnabledPlugins().catch(err => {
+            logger.error(`Failed to load plugins during core initialization: ${err}`);
+            pluginsLoaded = false; // Allow retry on failure
+        });
+    }
 }
 
 // Use DOMContentLoaded for faster initialization (fires before window.load)
@@ -362,8 +373,7 @@ window.addEventListener("load", async () => {
     // Setup quick resume for Continue Watching
     setupQuickResume();
 
-    // Initialize settings again to ensure everything is set (non-blocking)
-    initializeUserSettings();
+    // Reload server configuration
     reloadServer();
 
     const checkUpdates = localStorage.getItem(STORAGE_KEYS.CHECK_UPDATES_ON_STARTUP);
