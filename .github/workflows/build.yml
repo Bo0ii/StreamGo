@@ -181,7 +181,7 @@ jobs:
             release-artifacts/*.blockmap
             release-artifacts/*.dmg
             release-artifacts/*.AppImage
-            release-artifacts/*.snap
+          if-no-files-found: ignore
 
       - name: Upload unpacked folders (zipped)
         uses: actions/upload-artifact@v4
@@ -229,17 +229,28 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: release-artifacts
+          merge-multiple: true
+
+      - name: Flatten artifact directory structure
+        run: |
+          # Move all files from subdirectories to release-artifacts root
+          find release-artifacts -type f -exec mv {} release-artifacts/ \;
+          # Remove empty subdirectories
+          find release-artifacts -type d -empty -delete 2>/dev/null || true
+          # List all files for debugging
+          echo "Files in release-artifacts:"
+          ls -la release-artifacts/ || echo "Directory is empty or doesn't exist"
 
       - name: Upload GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            release-artifacts/**/*.exe
-            release-artifacts/**/*.blockmap
-            release-artifacts/**/*.dmg
-            release-artifacts/**/*.AppImage
-            release-artifacts/**/*.snap
-            release-artifacts/**/*.zip
+            release-artifacts/*.exe
+            release-artifacts/*.blockmap
+            release-artifacts/*.dmg
+            release-artifacts/*.AppImage
+            release-artifacts/*.zip
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
