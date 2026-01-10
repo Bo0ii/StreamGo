@@ -1886,6 +1886,91 @@ body.performance-mode .meta-item-container-Tj0Ib .poster-container-qkw48:hover .
     border: 1px solid rgba(255, 255, 255, 0.04) !important;
 }
 
+/* Update Modal - Small and Minimalistic */
+#updateModalContainer .modal-dialog-container-DZMKq {
+    width: auto !important;
+    max-width: 420px !important;
+    height: auto !important;
+    max-height: 500px !important;
+    min-width: 350px !important;
+}
+
+#updateModalContainer .modal-dialog-content-Xgv7Z {
+    padding: 1.5rem !important;
+}
+
+#updateModalContainer .title-container-v2mmF {
+    font-size: 1.25rem !important;
+    font-weight: 600 !important;
+    margin-bottom: 1rem !important;
+    padding-bottom: 0.75rem !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+#updateModalContainer .body-container-H80dD {
+    padding: 0 !important;
+    margin-bottom: 1rem !important;
+}
+
+#updateModalContainer .addon-details-container-VdGrt {
+    width: 100% !important;
+    margin: 0 !important;
+}
+
+#updateModalContainer .title-container-Ca076 {
+    margin-bottom: 0.75rem !important;
+}
+
+#updateModalContainer .name-container-XxPAj {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.25rem !important;
+}
+
+#updateModalContainer .name-i0o3Y {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+}
+
+#updateModalContainer .version-FdUq6 {
+    font-size: 0.85rem !important;
+    opacity: 0.8 !important;
+}
+
+#updateModalContainer .section-container-N6QHW {
+    height: auto !important;
+    max-height: 200px !important;
+    padding: 0.75rem !important;
+    margin-top: 0.5rem !important;
+    background: rgba(0, 0, 0, 0.2) !important;
+    border-radius: 8px !important;
+    font-size: 0.875rem !important;
+    line-height: 1.5 !important;
+}
+
+#updateModalContainer .buttons-container-e_JoR {
+    display: flex !important;
+    gap: 0.75rem !important;
+    justify-content: flex-end !important;
+    margin-top: 1rem !important;
+    padding-top: 1rem !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+#updateModalContainer .action-button-eprQG {
+    padding: 0.5rem 1.25rem !important;
+    min-width: 80px !important;
+    font-size: 0.875rem !important;
+    border-radius: 8px !important;
+}
+
+#updateModalContainer .cancel-button-zuUX6 {
+    padding: 0.5rem 1.25rem !important;
+    min-width: 80px !important;
+    font-size: 0.875rem !important;
+    border-radius: 8px !important;
+}
+
 .meta-item-container-Tj0Ib .poster-container-qkw48,
 .meta-item-container-Tj0Ib .poster-image-NiV7O {
   position: relative !important; /* ensure overlay absolutely positions over poster */

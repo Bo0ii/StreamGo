@@ -314,16 +314,39 @@ app.on("ready", async () => {
 
             // If the user is on Windows, give the option to either use Stremio Service or server.js
             if(platform === "win32") {
-                if(existsSync(useStremioServiceFlagPath)) {
+                // Check if Stremio Service is installed first - if so, auto-start it
+                if(await StremioService.isServiceInstalled()) {
+                    logger.info("Stremio Service is installed. Auto-starting...");
+                    try {
+                        await useStremioService();
+                        // Save preference for future launches
+                        if(!existsSync(useStremioServiceFlagPath)) {
+                            writeFileSync(useStremioServiceFlagPath, "1");
+                        }
+                    } catch (err) {
+                        logger.error(`Failed to auto-start Stremio Service: ${(err as Error).message}`);
+                    }
+                } else if(existsSync(useStremioServiceFlagPath)) {
                     await useStremioService();
                 } else if(existsSync(useServerJSFlagPath)) {
                     await useServerJS();
                 } else {
                     await chooseStreamingServer();
                 }
-            // For macOS and Linux, just give the instruction to use server.js
+            // For macOS and Linux, check if Stremio Service is installed first - if so, auto-start it
             } else if (platform === "darwin" || platform === "linux") {
-                useServerJS();
+                // Check if Stremio Service is installed first - if so, auto-start it
+                if(await StremioService.isServiceInstalled()) {
+                    logger.info("Stremio Service is installed. Auto-starting...");
+                    try {
+                        await StremioService.start();
+                    } catch (err) {
+                        logger.error(`Failed to auto-start Stremio Service: ${(err as Error).message}`);
+                        await useServerJS();
+                    }
+                } else {
+                    await useServerJS();
+                }
             }
         } else logger.info("Stremio Service is already running.");
     } else logger.info("Launching without Stremio streaming server.");

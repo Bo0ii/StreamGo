@@ -232,18 +232,41 @@ function applyThemeEarly(): void {
     // Initialize settings first to ensure default theme is set
     initializeUserSettings();
     
-    // Function to inject theme - tries multiple strategies for early injection
-    const injectThemeNow = () => {
+    // Function to inject theme with retry mechanism
+    let retryCount = 0;
+    const MAX_RETRIES = 10;
+    const RETRY_DELAY = 50; // 50ms between retries
+    
+    const injectThemeNow = (): boolean => {
         if (!document.head) {
             return false; // Head not available yet
         }
         
         try {
             applyUserTheme();
-            return true; // Successfully applied
+            // Verify theme was actually applied
+            const themeElement = document.getElementById("activeTheme");
+            if (themeElement) {
+                logger.info("Theme applied early successfully");
+                return true; // Successfully applied
+            }
+            return false; // Theme element not found, need to retry
         } catch (error) {
-            logger.error(`Failed to apply theme early: ${error}`);
+            logger.error(`Failed to apply theme early (attempt ${retryCount + 1}): ${error}`);
             return false;
+        }
+    };
+    
+    // Function to retry theme injection with exponential backoff
+    const retryThemeInjection = (): void => {
+        if (retryCount >= MAX_RETRIES) {
+            logger.warn("Max retries reached for early theme application, will retry on DOMContentLoaded");
+            return;
+        }
+        
+        retryCount++;
+        if (!injectThemeNow()) {
+            setTimeout(retryThemeInjection, RETRY_DELAY * retryCount);
         }
     };
     
@@ -253,7 +276,7 @@ function applyThemeEarly(): void {
             // If head doesn't exist yet, use requestAnimationFrame as fallback
             requestAnimationFrame(() => {
                 if (!injectThemeNow()) {
-                    setTimeout(injectThemeNow, 0);
+                    setTimeout(retryThemeInjection, 0);
                 }
             });
         }
@@ -264,10 +287,8 @@ function applyThemeEarly(): void {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             if (!injectThemeNow()) {
-                // Fallback: try again after a short delay
-                requestAnimationFrame(() => {
-                    setTimeout(injectThemeNow, 0);
-                });
+                // Retry with exponential backoff
+                setTimeout(retryThemeInjection, 0);
             }
         }, { once: true });
         return;
@@ -277,7 +298,7 @@ function applyThemeEarly(): void {
     if (!injectThemeNow()) {
         requestAnimationFrame(() => {
             if (!injectThemeNow()) {
-                setTimeout(injectThemeNow, 10);
+                setTimeout(retryThemeInjection, 0);
             }
         });
     }
@@ -296,6 +317,40 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined') {
     }
 }
 
+// Initialize core functionality as soon as DOM is ready (faster than window.load)
+function initializeCoreFeatures(): void {
+    // Initialize user settings first (needed for theme and plugins)
+    initializeUserSettings();
+    
+    // Apply theme immediately if not already applied
+    if (!document.getElementById("activeTheme")) {
+        applyUserTheme();
+    } else {
+        // Ensure theme position is correct even if already applied
+        refreshThemePosition();
+    }
+
+    // Apply user appearance settings (accent color, dark mode) - synchronous
+    applyUserAppearance();
+
+    // Apply UI tweaks - synchronous
+    applyTweaks();
+
+    // Load enabled plugins asynchronously (non-blocking)
+    loadEnabledPlugins().catch(err => {
+        logger.error(`Failed to load plugins during core initialization: ${err}`);
+    });
+}
+
+// Use DOMContentLoaded for faster initialization (fires before window.load)
+// This ensures themes and plugins load as soon as DOM is ready, not waiting for all resources
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeCoreFeatures, { once: true });
+} else {
+    // DOM is already ready, initialize immediately
+    initializeCoreFeatures();
+}
+
 window.addEventListener("load", async () => {
     // Inject performance CSS to force GPU acceleration on transitions
     injectPerformanceCSS();
@@ -306,6 +361,7 @@ window.addEventListener("load", async () => {
     // Setup quick resume for Continue Watching
     setupQuickResume();
 
+    // Initialize settings again to ensure everything is set (non-blocking)
     initializeUserSettings();
     reloadServer();
 
@@ -321,9 +377,27 @@ window.addEventListener("load", async () => {
         await DiscordPresence.discordRPCHandler();
     }
 
-    // Theme is already applied early, but ensure it's still applied as backup
+    // Ensure theme is still applied (backup check) - retry if not found
     if (!document.getElementById("activeTheme")) {
+        logger.warn("Theme not found on window.load, retrying application...");
         applyUserTheme();
+    }
+
+    // Move theme to end of head to ensure it overrides Stremio's CSS (fixes CSS priority)
+    refreshThemePosition();
+
+    // Retry applying appearance and tweaks as fallback (in case Stremio's DOM changed)
+    applyUserAppearance();
+    applyTweaks();
+
+    // Verify plugins were loaded, retry if not (fallback for early load failures)
+    const enabledPlugins = JSON.parse(localStorage.getItem(STORAGE_KEYS.ENABLED_PLUGINS) || "[]");
+    const loadedPlugins = enabledPlugins.filter((plugin: string) => document.getElementById(plugin) !== null);
+    if (loadedPlugins.length < enabledPlugins.length) {
+        logger.warn(`Only ${loadedPlugins.length}/${enabledPlugins.length} plugins loaded, retrying...`);
+        loadEnabledPlugins().catch(err => {
+            logger.error(`Failed to load plugins on window.load fallback: ${err}`);
+        });
     }
 
     // Inject app icon in glass theme
@@ -331,18 +405,6 @@ window.addEventListener("load", async () => {
 
     // Inject custom logo on intro/login pages
     injectIntroLogo();
-
-    // Move theme to end of head to ensure it overrides Stremio's CSS
-    refreshThemePosition();
-
-    // Apply user appearance settings (accent color, dark mode)
-    applyUserAppearance();
-
-    // Apply UI tweaks
-    applyTweaks();
-
-    // Load enabled plugins
-    loadEnabledPlugins();
 
     // Get transparency status once and reuse
     const isTransparencyEnabled = await getTransparencyStatus();
@@ -710,41 +772,54 @@ function refreshThemePosition(): void {
 }
 
 async function loadEnabledPlugins(): Promise<void> {
-    // Get plugins asynchronously (non-blocking)
-    const modLists = await getModListsAsync();
-    const pluginsToLoad = modLists.plugins;
+    try {
+        // Get plugins asynchronously (non-blocking)
+        const modLists = await getModListsAsync();
+        const pluginsToLoad = modLists.plugins;
 
-    // Get bundled plugins for first run detection
-    const bundledPlugins = existsSync(properties.bundledPluginsPath)
-        ? await readdir(properties.bundledPluginsPath).then(files => files.filter(f => f.endsWith(FILE_EXTENSIONS.PLUGIN)))
-        : [];
+        // Get bundled plugins for first run detection
+        const bundledPlugins = existsSync(properties.bundledPluginsPath)
+            ? await readdir(properties.bundledPluginsPath).then(files => files.filter(f => f.endsWith(FILE_EXTENSIONS.PLUGIN)))
+            : [];
 
-    // Check if this is first run (no plugins configured yet)
-    const storedPlugins = localStorage.getItem(STORAGE_KEYS.ENABLED_PLUGINS);
-    let enabledPlugins: string[];
+        // Check if this is first run (no plugins configured yet)
+        const storedPlugins = localStorage.getItem(STORAGE_KEYS.ENABLED_PLUGINS);
+        let enabledPlugins: string[];
 
-    if (!storedPlugins || storedPlugins === "[]") {
-        // First run - enable all bundled plugins by default
-        enabledPlugins = [...bundledPlugins];
-        localStorage.setItem(STORAGE_KEYS.ENABLED_PLUGINS, JSON.stringify(enabledPlugins));
-        logger.info("First run: enabling all bundled plugins by default");
-    } else {
-        enabledPlugins = JSON.parse(storedPlugins);
-    }
-
-    // Always ensure card-hover-info.plugin.js is enabled
-    const cardHoverPlugin = "card-hover-info.plugin.js";
-    if (pluginsToLoad.includes(cardHoverPlugin) && !enabledPlugins.includes(cardHoverPlugin)) {
-        enabledPlugins.push(cardHoverPlugin);
-        localStorage.setItem(STORAGE_KEYS.ENABLED_PLUGINS, JSON.stringify(enabledPlugins));
-        logger.info("Auto-enabled card-hover-info.plugin.js as default");
-    }
-
-    pluginsToLoad.forEach(plugin => {
-        if (enabledPlugins.includes(plugin)) {
-            ModManager.loadPlugin(plugin);
+        if (!storedPlugins || storedPlugins === "[]") {
+            // First run - enable all bundled plugins by default
+            enabledPlugins = [...bundledPlugins];
+            localStorage.setItem(STORAGE_KEYS.ENABLED_PLUGINS, JSON.stringify(enabledPlugins));
+            logger.info("First run: enabling all bundled plugins by default");
+        } else {
+            enabledPlugins = JSON.parse(storedPlugins);
         }
-    });
+
+        // Always ensure card-hover-info.plugin.js is enabled
+        const cardHoverPlugin = "card-hover-info.plugin.js";
+        if (pluginsToLoad.includes(cardHoverPlugin) && !enabledPlugins.includes(cardHoverPlugin)) {
+            enabledPlugins.push(cardHoverPlugin);
+            localStorage.setItem(STORAGE_KEYS.ENABLED_PLUGINS, JSON.stringify(enabledPlugins));
+            logger.info("Auto-enabled card-hover-info.plugin.js as default");
+        }
+
+        // Load plugins asynchronously without blocking - use Promise.allSettled to handle errors gracefully
+        const loadPromises = pluginsToLoad
+            .filter(plugin => enabledPlugins.includes(plugin))
+            .map(plugin => 
+                ModManager.loadPlugin(plugin).catch(err => {
+                    logger.error(`Failed to load plugin ${plugin}: ${err}`);
+                    return null; // Continue loading other plugins even if one fails
+                })
+            );
+
+        // Wait for all plugins to load (or fail gracefully)
+        await Promise.allSettled(loadPromises);
+        logger.info(`Plugin loading completed. Attempted to load ${loadPromises.length} plugins.`);
+    } catch (error) {
+        logger.error(`Failed to load enabled plugins: ${error}`);
+        // Don't throw - allow the app to continue even if plugin loading fails
+    }
 }
 
 async function browseMods(): Promise<void> {
