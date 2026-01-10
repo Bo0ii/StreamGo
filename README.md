@@ -61,6 +61,15 @@ Runs the Stremio streaming server automatically and loads [web.stremio.com](http
 - **Card Hover Info** - IMDb ratings & release dates on hover
 - **Enhancements Tweaks** - Interface tweaks, player enhancements, subtitle customization
 - **Enhanced External Player** - Auto-detect VLC/MPC-HC for external playback
+- **Trending Anime** - Trending anime row on homepage with top airing anime from MyAnimeList
+
+### ⚙️ Tweaks & Customization
+Settings → Tweaks section with customizable options:
+- **Interface Tweaks** - Full height backgrounds, hide hover effects, rounded corners
+- **Player Enhancements** - Ambilight effect, skip intro duration control
+- **Subtitle Customization** - Font size, color, background opacity adjustments
+- **Keyboard Shortcuts** - Customizable shortcuts for playback controls
+- **Streaming Performance** - Optimize BitTorrent settings (conservative/balanced/aggressive profiles)
 
 ### ✨ Other Features
 - **Discord Rich Presence** - Show what you're watching (toggleable)
