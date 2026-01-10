@@ -3,10 +3,53 @@ dist
 stremgo-win32-x64
 release-builds
 package-lock.json
+pnpm-lock.yaml
 .vscode
+.idea
+*.swp
+*.swo
+*~
 backup
 CLAUDE.md
+claude/
+.claude/
 todo.md
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+nul
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+logs/
+
+# Electron-builder artifacts
+*.blockmap
+*.dmg.blockmap
+*.exe.blockmap
+*.zip.blockmap
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
 
 # Stremio service source files (extracted binaries are in platform-specific folders)
 stremio-service/Stremio
