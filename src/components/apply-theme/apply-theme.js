@@ -1,0 +1,62 @@
+function applyTheme(theme) {
+    console.log("applying " + theme);
+
+    const activeThemeElement = document.getElementById("activeTheme");
+    if (activeThemeElement) {
+        activeThemeElement.remove();
+    }
+
+    if (theme !== "Default") {
+        const themeElement = document.createElement("link");
+        themeElement.id = "activeTheme";
+        themeElement.rel = "stylesheet";
+        // Try user themes path first
+        themeElement.href = `{{ userThemesPath }}/${theme}`;
+
+        // If user theme fails to load, try bundled themes path
+        themeElement.onerror = function() {
+            console.log("[ Theme ] User theme not found, trying bundled path...");
+            themeElement.href = `{{ bundledThemesPath }}/${theme}`;
+        };
+
+        document.head.appendChild(themeElement);
+    }
+
+    const currentTheme = localStorage.getItem("currentTheme");
+    if (currentTheme) {
+        console.log("[ Theme ] Disabling " + currentTheme + " as an active theme");
+
+        const currentThemeElement = document.getElementById(currentTheme);
+        if (currentThemeElement) {
+            currentThemeElement.classList.remove("disabled");
+
+            if (currentTheme !== "Default") {
+                currentThemeElement.classList.remove("uninstall-button-container-oV4Yo");
+                currentThemeElement.classList.add("install-button-container-yfcq5");
+            } else {
+                currentThemeElement.style.backgroundColor = "var(--secondary-accent-color)";
+            }
+
+            currentThemeElement.innerText = "Apply";
+        }
+    }
+
+    localStorage.setItem("currentTheme", theme);
+    console.log("[ Theme ] Disabling " + theme + " as an active theme");
+
+    const newThemeElement = document.getElementById(theme);
+    if (newThemeElement) {
+        newThemeElement.classList.add("disabled");
+
+        if (theme !== "Default") {
+            newThemeElement.classList.remove("install-button-container-yfcq5");
+            newThemeElement.classList.add("uninstall-button-container-oV4Yo");
+        } else {
+            newThemeElement.style.backgroundColor = "var(--overlay-color)";
+        }
+
+        newThemeElement.innerText = "Applied";
+    }
+
+    console.log(`[ Theme ] ${theme} applied!`);
+}

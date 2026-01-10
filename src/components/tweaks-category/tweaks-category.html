@@ -1,0 +1,193 @@
+<!-- Interface Tweaks Section (Collapsible) -->
+<div class="enhanced-collapsible" id="interfaceTweaksSection">
+    <div class="enhanced-collapsible-header" data-section="interface-tweaks">
+        <span class="enhanced-collapsible-title">Interface Tweaks</span>
+        <svg class="enhanced-collapsible-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+    </div>
+    <div class="enhanced-collapsible-content" data-section="interface-tweaks">
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Movie Background Full Height</div>
+            </div>
+            <div class="content-P2T0i">
+                <div tabindex="-1" class="toggle-container-lZfHP button-container-zVLH6 {{ fullHeightBackground }}" id="fullHeightBackgroundToggle" style="outline: none;">
+                    <div class="toggle-toOWM"></div>
+                </div>
+            </div>
+        </div>
+        <p style="color: gray; margin-bottom: 1rem; font-size: 12px;">Extend movie/show background to fill the entire screen including the top bar.</p>
+
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Hide Poster Hover Effects</div>
+            </div>
+            <div class="content-P2T0i">
+                <div tabindex="-1" class="toggle-container-lZfHP button-container-zVLH6 {{ hidePosterHover }}" id="hidePosterHoverToggle" style="outline: none;">
+                    <div class="toggle-toOWM"></div>
+                </div>
+            </div>
+        </div>
+        <p style="color: gray; margin-bottom: 1rem; font-size: 12px;">Remove hover background effects on movie/show posters.</p>
+
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Hide Context Menu Dots</div>
+            </div>
+            <div class="content-P2T0i">
+                <div tabindex="-1" class="toggle-container-lZfHP button-container-zVLH6 {{ hideContextDots }}" id="hideContextDotsToggle" style="outline: none;">
+                    <div class="toggle-toOWM"></div>
+                </div>
+            </div>
+        </div>
+        <p style="color: gray; margin-bottom: 1rem; font-size: 12px;">Hide the 3-dot context menu on posters.</p>
+
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Rounded Poster Corners</div>
+            </div>
+            <div class="content-P2T0i">
+                <div tabindex="-1" class="toggle-container-lZfHP button-container-zVLH6 {{ roundedPosters }}" id="roundedPostersToggle" style="outline: none;">
+                    <div class="toggle-toOWM"></div>
+                </div>
+            </div>
+        </div>
+        <p style="color: gray; margin-bottom: 1rem; font-size: 12px;">Add rounded corners to poster images on hover.</p>
+    </div>
+</div>
+
+<!-- Player Enhancements Section (Collapsible) -->
+<div class="enhanced-collapsible" id="playerEnhancementsSection">
+    <div class="enhanced-collapsible-header" data-section="player-enhancements">
+        <span class="enhanced-collapsible-title">Player Enhancements</span>
+        <svg class="enhanced-collapsible-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+    </div>
+    <div class="enhanced-collapsible-content" data-section="player-enhancements">
+        <p style="color: gray; font-size: 12px; margin-bottom: 1rem;">
+            These features appear as an overlay when watching content. Use keyboard shortcuts for quick access.
+        </p>
+
+        <!-- Ambilight Toggle -->
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Ambilight Effect</div>
+            </div>
+            <div class="content-P2T0i">
+                <div tabindex="-1" class="toggle-container-lZfHP button-container-zVLH6 {{ ambilightEnabled }}" id="ambilightToggle">
+                    <div class="toggle-toOWM"></div>
+                </div>
+            </div>
+        </div>
+        <p style="color: gray; font-size: 12px; margin-bottom: 1rem;">Projects video edge colors as a glow around the window border.</p>
+
+        <!-- Skip Intro Duration -->
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Skip Intro Duration</div>
+            </div>
+            <div class="content-P2T0i">
+                <input type="number" id="skipIntroDuration" value="{{ skipIntroSeconds }}" min="30" max="180"
+                    style="width: 60px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+                    border-radius: 4px; padding: 6px 10px; color: white; font-size: 14px;">
+                <span style="color: gray; margin-left: 8px;">seconds</span>
+            </div>
+        </div>
+        <p style="color: gray; font-size: 12px; margin-bottom: 1rem;">Seconds to skip when pressing Skip Intro (default: 85s).</p>
+    </div>
+</div>
+
+<!-- Subtitle Customization Section (Collapsible) -->
+<div class="enhanced-collapsible" id="subtitleSection">
+    <div class="enhanced-collapsible-header" data-section="subtitle">
+        <span class="enhanced-collapsible-title">Subtitle Customization</span>
+        <svg class="enhanced-collapsible-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+    </div>
+    <div class="enhanced-collapsible-content" data-section="subtitle">
+        <!-- Subtitle Font Size -->
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Subtitle Font Size</div>
+            </div>
+            <div class="content-P2T0i" style="display: flex; align-items: center; gap: 12px;">
+                <input type="range" id="settingsSubtitleSize" min="16" max="48" value="{{ subtitleFontSize }}"
+                    style="width: 120px; accent-color: var(--accent-color, #7b5bf5);">
+                <span id="settingsSubtitleSizeValue" style="color: white; min-width: 45px;">{{ subtitleFontSize }}px</span>
+            </div>
+        </div>
+
+        <!-- Subtitle Color -->
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Subtitle Color</div>
+            </div>
+            <div class="content-P2T0i" style="display: flex; align-items: center; gap: 8px;">
+                <input type="color" id="settingsSubtitleColor" value="{{ subtitleColor }}"
+                    style="width: 40px; height: 30px; border: none; border-radius: 4px; cursor: pointer;">
+                <span id="settingsSubtitleColorValue" style="color: gray; font-size: 12px;">{{ subtitleColor }}</span>
+            </div>
+        </div>
+
+        <!-- Subtitle Background -->
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Subtitle Background Opacity</div>
+            </div>
+            <div class="content-P2T0i" style="display: flex; align-items: center; gap: 12px;">
+                <input type="range" id="settingsSubtitleBgOpacity" min="0" max="100" value="{{ subtitleBgOpacity }}"
+                    style="width: 120px; accent-color: var(--accent-color, #7b5bf5);">
+                <span id="settingsSubtitleBgOpacityValue" style="color: white; min-width: 40px;">{{ subtitleBgOpacity }}%</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Keyboard Shortcuts Section (Collapsible) -->
+<div class="enhanced-collapsible" id="keyboardShortcutsSection">
+    <div class="enhanced-collapsible-header" data-section="keyboard-shortcuts">
+        <span class="enhanced-collapsible-title">Keyboard Shortcuts</span>
+        <svg class="enhanced-collapsible-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+    </div>
+    <div class="enhanced-collapsible-content" data-section="keyboard-shortcuts">
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; color: gray; font-size: 13px;">
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <span>Screenshot</span>
+                <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">S</kbd>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <span>Picture-in-Picture</span>
+                <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">P</kbd>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <span>Speed Down</span>
+                <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">[</kbd>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <span>Speed Up</span>
+                <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">]</kbd>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <span>Skip Intro</span>
+                <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">Shift + Left</kbd>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <span>Skip Outro</span>
+                <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">Shift + Right</kbd>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <span>Sub Delay -</span>
+                <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">G</kbd>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <span>Sub Delay +</span>
+                <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">H</kbd>
+            </div>
+        </div>
+    </div>
+</div>

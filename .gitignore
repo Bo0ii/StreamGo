@@ -1,0 +1,7 @@
+node_modules
+dist
+stremgo-win32-x64
+release-builds
+package-lock.json
+.vscode
+backup

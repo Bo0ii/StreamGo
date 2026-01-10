@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dist:*)",
+      "Bash(npm run dev:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm approve-builds:*)",
+      "Bash(pnpm rebuild:*)",
+      "Bash(test:*)",
+      "Bash(dir \"C:\\\\Users\\\\amoor\\\\OneDrive\\\\Documents\\\\GitHub\\\\Stremio-Plus\\\\images\\\\icons\")",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(grep:*)",
+      "WebFetch(domain:v3-cinemeta.strem.io)",
+      "Bash(npm run lint)"
+    ]
+  }
+}

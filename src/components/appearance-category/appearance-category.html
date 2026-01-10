@@ -1,0 +1,57 @@
+<!-- Appearance Section (Collapsible) -->
+<div class="enhanced-collapsible" id="appearanceSection">
+    <div class="enhanced-collapsible-header" data-section="appearance">
+        <span class="enhanced-collapsible-title">Appearance</span>
+        <svg class="enhanced-collapsible-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+    </div>
+    <div class="enhanced-collapsible-content" data-section="appearance">
+        <!-- Dark Mode -->
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Dark Mode</div>
+            </div>
+            <div class="content-P2T0i">
+                <div tabindex="-1" class="toggle-container-lZfHP button-container-zVLH6 {{ darkMode }}" id="darkModeToggle" style="outline: none;">
+                    <div class="toggle-toOWM"></div>
+                </div>
+            </div>
+        </div>
+        <p style="color: gray; margin-bottom: 1rem; font-size: 12px;">Enable a softer dark gray appearance instead of the default colors.</p>
+
+        <!-- Accent Color -->
+        <div class="option-vFOAS">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Accent Color</div>
+            </div>
+            <div class="content-P2T0i">
+                <div id="accentColorPicker" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <div class="color-option" data-color="#7b5bf5" title="Purple (Default)" style="width: 32px; height: 32px; border-radius: 50%; background-color: #7b5bf5; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s, transform 0.2s;"></div>
+                    <div class="color-option" data-color="#3b82f6" title="Blue" style="width: 32px; height: 32px; border-radius: 50%; background-color: #3b82f6; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s, transform 0.2s;"></div>
+                    <div class="color-option" data-color="#10b981" title="Green" style="width: 32px; height: 32px; border-radius: 50%; background-color: #10b981; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s, transform 0.2s;"></div>
+                    <div class="color-option" data-color="#ef4444" title="Red" style="width: 32px; height: 32px; border-radius: 50%; background-color: #ef4444; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s, transform 0.2s;"></div>
+                    <div class="color-option" data-color="#f97316" title="Orange" style="width: 32px; height: 32px; border-radius: 50%; background-color: #f97316; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s, transform 0.2s;"></div>
+                    <div class="color-option" data-color="#ec4899" title="Pink" style="width: 32px; height: 32px; border-radius: 50%; background-color: #ec4899; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s, transform 0.2s;"></div>
+                    <div class="color-option" data-color="#06b6d4" title="Cyan" style="width: 32px; height: 32px; border-radius: 50%; background-color: #06b6d4; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s, transform 0.2s;"></div>
+                    <div class="color-option" data-color="#8b5cf6" title="Violet" style="width: 32px; height: 32px; border-radius: 50%; background-color: #8b5cf6; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s, transform 0.2s;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Accent Color -->
+        <div class="option-vFOAS" style="margin-top: 1rem;">
+            <div class="heading-dYMDt">
+                <div class="label-qI6Vh">Custom Accent Color</div>
+            </div>
+            <div class="content-P2T0i" style="display: flex; gap: 10px; align-items: center;">
+                <input type="color" id="customAccentColor" value="{{ accentColor }}" style="width: 40px; height: 32px; border: none; border-radius: 4px; cursor: pointer; background: transparent;">
+                <input type="text" id="customAccentColorText" placeholder="#7b5bf5" value="{{ accentColor }}" style="background-color: #1a1a1a; color: white; border: 1px solid #333; padding: 8px 12px; border-radius: 4px; font-size: 14px; width: 100px; outline: none;">
+                <div tabindex="0" class="button-DNmYL button-container-zVLH6 button" id="resetAccentColor" title="Reset to Default">
+                    Reset
+                </div>
+            </div>
+        </div>
+        <p style="color: gray; margin-top: 0.5rem; font-size: 12px;">Choose an accent color for buttons, toggles, and highlights throughout the interface.</p>
+    </div>
+</div>

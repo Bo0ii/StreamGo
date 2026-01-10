@@ -1,0 +1,207 @@
+name: Build and Publish Electron App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }} - ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+            arch: x64
+          - os: ubuntu-latest
+            target: linux
+            arch: arm64
+          - os: macos-latest
+            target: mac
+            arch: x64
+          - os: macos-latest
+            target: mac
+            arch: arm64
+          - os: windows-latest
+            target: win
+            arch: x64
+
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.x'
+
+      - name: Install Python to fix node-gyp issues
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Cache Node.js modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Install dependencies
+        run: |
+          npm install --no-optional
+          npm install -g @electron/rebuild
+
+      - name: Manually install dmg-license (macOS only)
+        if: matrix.os == 'macos-latest'
+        run: npm install dmg-license
+
+      - name: Rebuild native dependencies
+        run: |
+          npx @electron/rebuild -f
+        env:
+          PYTHON: python3
+
+      - name: Build the app
+        run: npm run dist
+
+      - name: Build for production with electron-builder
+        run: npm run build:${{ matrix.target }}:${{ matrix.arch }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: "Debug: List release-builds directory"
+        run: |
+          echo "Contents of release-builds directory:"
+          ls -l release-builds
+
+      - name: Prepare artifacts (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p prepared-artifacts
+
+          # Handle Linux
+          if [[ "${{ matrix.target }}" == "linux" ]]; then
+            # Move setup files if they exist
+            if compgen -G "release-builds/*.AppImage" > /dev/null; then
+              mv release-builds/*.AppImage prepared-artifacts/
+            fi
+            if compgen -G "release-builds/*.snap" > /dev/null; then
+              mv release-builds/*.snap prepared-artifacts/
+            fi
+
+            # Compress unpacked folders appropriately
+            if [[ -d release-builds/linux-arm64-unpacked ]]; then
+              cd release-builds
+              zip -r ../prepared-artifacts/linux-arm64-unpacked.zip linux-arm64-unpacked
+              cd ..
+            elif [[ -d release-builds/linux-unpacked ]]; then
+              cd release-builds
+              zip -r ../prepared-artifacts/linux-unpacked.zip linux-unpacked
+              cd ..
+            fi
+          fi
+
+          # Handle macOS
+          if [[ "${{ matrix.target }}" == "mac" ]]; then
+            # Move setup file if it exists
+            if compgen -G "release-builds/*.dmg" > /dev/null; then
+              mv release-builds/*.dmg prepared-artifacts/
+            fi
+
+            # Compress unpacked folders appropriately
+            if [[ "${{ matrix.arch }}" == "x64" && -d release-builds/mac ]]; then
+              cd release-builds
+              zip -r ../prepared-artifacts/mac-unpacked.zip mac
+              cd ..
+            elif [[ -d release-builds/mac-${{ matrix.arch }} ]]; then
+              cd release-builds
+              zip -r ../prepared-artifacts/mac-${{ matrix.arch }}.zip mac-${{ matrix.arch }}
+              cd ..
+            fi
+          fi
+        shell: bash
+
+      - name: Prepare artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path prepared-artifacts | Out-Null
+          
+          # Move setup files (.exe, .blockmap)
+          Get-ChildItem -Path "release-builds" -Filter "*.exe" | ForEach-Object {
+              Move-Item $_.FullName -Destination "prepared-artifacts/" -Force
+          }
+          Get-ChildItem -Path "release-builds" -Filter "*.blockmap" | ForEach-Object {
+              Move-Item $_.FullName -Destination "prepared-artifacts/" -Force
+          }
+          
+          # Compress unpacked folders
+          if (Test-Path "release-builds/win-unpacked") {
+              Compress-Archive -Path "release-builds/win-unpacked\*" -DestinationPath "prepared-artifacts/win-unpacked-${{ matrix.arch }}.zip" -Force
+          }
+          if (Test-Path "release-builds/win-arm64-unpacked") {
+              Compress-Archive -Path "release-builds/win-arm64-unpacked\*" -DestinationPath "prepared-artifacts/win-arm64-unpacked.zip" -Force
+          }
+
+      - name: Move artifacts to release directory
+        run: |
+          mkdir -p release-artifacts
+          mv prepared-artifacts/* release-artifacts/
+
+      - name: Upload setup files
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-files-${{ matrix.target }}-${{ matrix.arch }}
+          path: |
+            release-artifacts/*.exe
+            release-artifacts/*.blockmap
+            release-artifacts/*.dmg
+            release-artifacts/*.AppImage
+            release-artifacts/*.snap
+
+      - name: Upload unpacked folders (zipped)
+        uses: actions/upload-artifact@v4
+        with:
+          name: unpacked-folders-${{ matrix.target }}-${{ matrix.arch }}
+          path: release-artifacts/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create Git tag
+        run: |
+          TAG_NAME="v$(date +'%Y%m%d%H%M%S')"
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git tag $TAG_NAME
+          git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}
+          git push origin $TAG_NAME
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Upload GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          files: |
+            release-artifacts/**/*.exe
+            release-artifacts/**/*.blockmap
+            release-artifacts/**/*.dmg
+            release-artifacts/**/*.AppImage
+            release-artifacts/**/*.snap
+            release-artifacts/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}

@@ -1,0 +1,95 @@
+<!-- About Information Section -->
+<div class="option-vFOAS about-stremgo-card" style="margin-bottom: 1.5rem; border-radius: 8px; padding: 1.25rem;">
+    <div class="heading-dYMDt" style="margin-bottom: 1rem;">
+        <div class="label-qI6Vh" style="font-size: 1.1rem; font-weight: 600; color: #fff;">About StremGo</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; color: #e0e0e0;">
+            <svg style="width: 18px; height: 18px; fill: currentColor; opacity: 0.8;" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+            <span style="font-size: 14px;">Version: <strong style="color: #fff;">v{{ version }}</strong></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; color: #e0e0e0;">
+            <svg style="width: 18px; height: 18px; fill: currentColor; opacity: 0.8;" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+            </svg>
+            <span style="font-size: 14px;">Developed by: <a href="https://github.com/Bo0ii" target="_blank" rel="noreferrer" class="about-link" style="text-decoration: none; font-weight: 600; transition: color 0.2s ease;">bo0ii</a></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; color: #e0e0e0;">
+            <svg style="width: 18px; height: 18px; fill: currentColor; opacity: 0.8;" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+            <span style="font-size: 14px;">Credits: <strong style="color: #fff;">REVENGE977</strong></span>
+        </div>
+    </div>
+</div>
+
+<div class="option-vFOAS">
+    <div class="heading-dYMDt">
+        <div class="label-qI6Vh">Check for updates on startup</div>
+    </div>
+    <div class="content-P2T0i">
+        <div tabindex="-1" class="toggle-container-lZfHP button-container-zVLH6 {{ checkForUpdatesOnStartup }}" id="checkForUpdatesOnStartup">
+            <div class="toggle-toOWM"></div>
+        </div>
+    </div>
+</div>
+
+<div class="option-vFOAS">
+    <div class="heading-dYMDt">
+        <div class="label-qI6Vh">Discord Rich Presence</div>
+    </div>
+    <div class="content-P2T0i">
+        <div tabindex="-1" class="toggle-container-lZfHP button-container-zVLH6 {{ discordrichpresence }}" id="discordrichpresence" style="outline: none;">
+            <div class="toggle-toOWM"></div>
+        </div>
+    </div>
+</div>
+
+<div class="option-vFOAS">
+    <div class="heading-dYMDt">
+        <div class="label-qI6Vh">Window transparency</div>
+    </div>
+    <div class="content-P2T0i">
+        <div tabindex="-1" class="toggle-container-lZfHP button-container-zVLH6 {{ enableTransparentThemes }}" id="enableTransparentThemes" style="outline: none;">
+            <div class="toggle-toOWM"></div>
+        </div>
+    </div>
+</div>
+
+<p style="color:gray;">This option has to be enabled for themes that support transparency to work. (experimental)</p>
+<br/>
+
+<div class="option-vFOAS" id="customPlayerPathContainer" style="display: {{ customPathDisplay }};">
+    <div class="heading-dYMDt">
+        <div class="label-qI6Vh">External Player Path (Optional)</div>
+    </div>
+    <div class="content-P2T0i" style="display: flex; gap: 10px; align-items: center;">
+        <input type="text" id="customPlayerPath" placeholder="Leave empty for auto-detection" value="{{ customPath }}" style="background-color: #1a1a1a; color: white; border: 1px solid #333; padding: 8px 12px; border-radius: 4px; font-size: 14px; flex: 1; outline: none;">
+        <div tabindex="0" class="button-DNmYL button-container-zVLH6 button" id="browsePlayerPath">
+            Browse
+        </div>
+    </div>
+</div>
+
+<p id="playerStatus" style="color: gray; margin-top: 0.5rem;">{{ playerStatus }}</p>
+<br/>
+
+<div class="option-vFOAS">
+    <div class="content-P2T0i">
+        <div tabindex="0" title="Community Plugins &amp; Themes" class="button-DNmYL button-container-zVLH6 button" id="browsePluginsThemesBtn">
+            Community Marketplace
+        </div>
+    </div>
+</div>
+
+<div class="option-vFOAS">
+    <div class="content-P2T0i">
+        <div tabindex="0" title="Check For Updates" class="button-DNmYL button-container-zVLH6 button" id="checkforupdatesBtn">
+            Check For Updates
+        </div>
+    </div>
+</div>
+
+<br/>

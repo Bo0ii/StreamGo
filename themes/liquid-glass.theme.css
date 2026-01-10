@@ -1,0 +1,2318 @@
+/**
+ * @name Modern Glass
+ * @description A theme that takes advantage of Modern Glass Styles with Light and Dark Theme.
+ * @version 1.1.0
+ * @updateUrl https://github.com/Fxy6969/Streamio-Glass-Theme/tree/cover
+ * @author Fxy/Moerat
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+
+* {
+  font-family: 'Inter', sans-serif !important;
+
+  scrollbar-width: none;
+}
+
+/* change the accent color from purple to white */
+:root {
+  --primary-accent-color: #fff;
+  --background: rgb(20, 20, 20);
+
+  --bg-color: rgb(250, 251, 255, 0.74);
+  --bg-color-img: linear-gradient(45deg, #f4f4fc, #f4f4fc);
+  --bg-progress-color: #0c0c0c;
+  --bg-hover-color: rgba(12, 12, 12, 0.05);
+  --bg-input-color: rgba(157, 157, 157, 0.74);
+
+  --border-radius: 12px;
+
+  /* PERFORMANCE: Single-layer shadows only for 200fps+ */
+  --box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --box-shadow-hover: 0 6px 20px rgba(0, 0, 0, 0.3);
+  --box-shadow-light: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+  /* PERFORMANCE: Blur-only filters (NO saturate - saves compositing) for 200fps+ */
+  --backdrop-filter: blur(6px);
+  --backdrop-filter2: blur(4px);
+  --backdrop-filter-light: blur(2px);
+
+  /* Performance mode - completely disabled */
+  --backdrop-filter-performance: none;
+  --backdrop-filter-performance-strong: none;
+}
+
+/* ========================= SCROLL PERFORMANCE OPTIMIZATIONS ========================= */
+
+/* Enable smooth native scrolling */
+html {
+  scroll-behavior: smooth !important;
+}
+
+/* GPU-accelerated scrollable containers with enhanced performance */
+[class*="meta-items-container"],
+[class*="board-content-container"],
+[class*="discover-content"],
+[class*="library-content"],
+[class*="search-content"],
+[class*="addons-content"],
+[class*="settings-content"],
+[class*="side-drawer"],
+[class*="nav-content-container"],
+[class*="vertical-nav-bar-container"] {
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  contain: layout style paint !important;
+  will-change: scroll-position !important;
+  scroll-behavior: smooth !important;
+}
+
+/* Contain layout for poster items - prevents paint propagation */
+[class*="meta-item-container"] {
+  contain: layout paint style !important;
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+  isolation: isolate !important;
+}
+
+/* Optimize poster images for smooth scrolling */
+[class*="poster-image"] {
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+  will-change: auto !important;
+  image-rendering: -webkit-optimize-contrast !important;
+}
+
+/* Reduce repaints during scroll - limit will-change to interactive states */
+[class*="meta-item-container"]:hover {
+  will-change: transform !important;
+}
+
+/* Remove will-change when not hovering to reduce memory usage */
+[class*="meta-item-container"]:not(:hover) {
+  will-change: auto !important;
+}
+
+/* Optimize transitions for GPU - only transform and opacity with faster timing */
+[class*="meta-item"],
+[class*="poster-container"],
+[class*="nav-tab-button"],
+[class*="action-button"] {
+  transition-property: transform, opacity !important;
+  transition-duration: 0.15s !important;
+  transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+}
+
+/* Keep horizontal nav bar blur consistent during scroll (no performance reduction) */
+/* The nav bar blur should remain constant for visual consistency */
+
+/* PERFORMANCE: Completely disable backdrop-filter during scroll for 144Hz+ smoothness */
+/* This is the most impactful optimization for scroll performance */
+/* NOTE: nav-tab-button, button-container, side-drawer, and background-image-layer excluded to keep nav bar, side drawer, and background blur consistent */
+body.scrolling-active [style*="backdrop-filter"]:not([class*="background-image-layer"]),
+body.scrolling-active [class*="backdrop-filter"]:not([class*="background-image-layer"]),
+body.scrolling-active [class*="meta-item-container"] *::before,
+body.scrolling-active [class*="poster-container"] *::before,
+body.scrolling-active [class*="meta-item-container"] *::after,
+body.scrolling-active [class*="poster-container"] *::after,
+body.performance-mode [style*="backdrop-filter"]:not([class*="background-image-layer"]),
+body.performance-mode [class*="backdrop-filter"]:not([class*="background-image-layer"]),
+body.performance-mode [class*="meta-item-container"] *::before,
+body.performance-mode [class*="poster-container"] *::before {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* PERFORMANCE: Disable blur on title bar during scroll (but NOT horizontal nav bar) */
+body.scrolling-active .title-bar,
+body.performance-mode .title-bar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  /* Use solid background as visual fallback */
+  background-color: rgba(20, 20, 20, 0.9) !important;
+}
+
+/* Performance mode: Completely disable hover effects on movie cards during scroll */
+body.scrolling-active [class*="meta-item-container"]:hover,
+body.scrolling-active [class*="poster-container"]:hover,
+body.performance-mode [class*="meta-item-container"]:hover,
+body.performance-mode [class*="poster-container"]:hover {
+  /* Remove all hover transforms and blur effects */
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  will-change: auto !important;
+}
+
+
+/* Performance mode: Simplify box-shadows on movie cards during scroll */
+/* NOTE: nav buttons excluded to keep nav bar consistent */
+body.scrolling-active [class*="meta-item-container"],
+body.performance-mode [class*="meta-item-container"] {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+/* PERFORMANCE: Disable blur on dropdowns and menus during scroll */
+body.scrolling-active [class*="dropdown"],
+body.scrolling-active [class*="menu-container"],
+body.scrolling-active [class*="modal"],
+body.performance-mode [class*="dropdown"],
+body.performance-mode [class*="menu-container"],
+body.performance-mode [class*="modal"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: rgba(30, 30, 30, 0.95) !important;
+}
+
+/* ========================= ULTRA 144FPS SCROLL OPTIMIZATIONS ========================= */
+
+/* CRITICAL: Disable ALL transitions during scroll for instant response */
+body.scrolling-active *,
+body.scrolling-active *::before,
+body.scrolling-active *::after {
+  transition: none !important;
+  animation-play-state: paused !important;
+}
+
+/* Disable pointer-events on content during scroll - prevents hover calculations */
+body.scrolling-active [class*="meta-item-container"],
+body.scrolling-active [class*="poster-container"],
+body.scrolling-active [class*="meta-row"],
+body.scrolling-active [class*="board-row"] {
+  pointer-events: none !important;
+}
+
+/* Remove shadows on content during scroll - major paint reduction */
+/* NOTE: nav buttons excluded to keep nav bar consistent */
+body.scrolling-active [class*="meta-item-container"],
+body.scrolling-active [class*="poster-container"],
+body.scrolling-active [class*="card"],
+body.scrolling-active [class*="modal"],
+body.scrolling-active [class*="dropdown"] {
+  box-shadow: none !important;
+}
+
+/* Content-visibility for lazy rendering - skip off-screen content entirely */
+[class*="meta-item-container"],
+[class*="board-row"],
+[class*="meta-row"] {
+  content-visibility: auto !important;
+  contain-intrinsic-size: 200px 300px !important;
+}
+
+/* Nav bar mask-image kept during scroll for consistent appearance */
+
+/* Reduce GPU memory pressure - disable will-change during scroll */
+body.scrolling-active [class*="meta-item-container"],
+body.scrolling-active [class*="poster-container"],
+body.scrolling-active [class*="poster-image"] {
+  will-change: auto !important;
+}
+
+/* ULTRA 200FPS: Disable border-radius during scroll (complex shapes are expensive) */
+/* NOTE: Excluded img to keep logo and nav bar consistent */
+body.scrolling-active [class*="meta-item-container"],
+body.scrolling-active [class*="poster-container"],
+body.scrolling-active [class*="poster-image"],
+body.scrolling-active [class*="card"]:not([class*="nav"]) {
+  border-radius: 0 !important;
+}
+
+/* ULTRA 200FPS: Disable ALL filter effects during scroll */
+/* NOTE: Excluded app-icon-glass-theme to keep logo consistent */
+body.scrolling-active [class*="meta-item-container"] *:not([class*="background-image-layer"]),
+body.scrolling-active [class*="poster-container"] *:not([class*="background-image-layer"]),
+body.scrolling-active img:not(.app-icon-glass-theme) {
+  filter: none !important;
+  -webkit-filter: none !important;
+}
+
+/* IMPORTANT: Always keep background-image-layer and its images blurred during scroll */
+body.scrolling-active [class*="background-image-layer"],
+body.scrolling-active [class*="background-image-layer"] *,
+body.scrolling-active [class*="background-image-layer"] img,
+body.performance-mode [class*="background-image-layer"],
+body.performance-mode [class*="background-image-layer"] *,
+body.performance-mode [class*="background-image-layer"] img {
+  filter: blur(10px) !important;
+  -webkit-filter: blur(10px) !important;
+  backdrop-filter: blur(10px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+}
+
+/* ULTRA 200FPS: Force GPU compositing layer with opacity trick */
+[class*="meta-item-container"],
+[class*="poster-container"],
+[class*="board-row"],
+[class*="meta-row"] {
+  opacity: 0.999 !important;
+  transform: translateZ(0) !important;
+  -webkit-transform: translateZ(0) !important;
+}
+
+/* ULTRA 200FPS: Disable image anti-aliasing during scroll */
+/* NOTE: Excluded app-icon-glass-theme to keep logo consistent */
+body.scrolling-active img:not(.app-icon-glass-theme),
+body.scrolling-active [class*="poster-image"] {
+  image-rendering: optimizeSpeed !important;
+}
+
+/* ULTRA 200FPS: Remove background images during scroll */
+body.scrolling-active [class*="meta-item-container"],
+body.scrolling-active [class*="poster-container"] {
+  background-image: none !important;
+}
+
+/* ULTRA 200FPS: Disable text shadows during scroll */
+body.scrolling-active * {
+  text-shadow: none !important;
+}
+
+/* ULTRA 200FPS: Disable focus outlines during scroll */
+body.scrolling-active *:focus,
+body.scrolling-active *:focus-visible {
+  outline: none !important;
+}
+
+/* ULTRA 200FPS: Hide poster overlays and extra layers during scroll */
+body.scrolling-active [class*="meta-item-container"]::before,
+body.scrolling-active [class*="meta-item-container"]::after,
+body.scrolling-active [class*="poster-container"]::before,
+body.scrolling-active [class*="poster-container"]::after,
+body.scrolling-active [class*="meta-item"] [class*="overlay"],
+body.scrolling-active [class*="poster"] [class*="overlay"] {
+  display: none !important;
+}
+
+/* ULTRA 200FPS: Simplify poster cards to bare minimum during scroll */
+body.scrolling-active [class*="meta-item-container"],
+body.scrolling-active [class*="poster-container"] {
+  background: transparent !important;
+  border: none !important;
+  overflow: hidden !important;
+}
+
+/* ULTRA 200FPS: Force simple box model during scroll */
+body.scrolling-active [class*="meta-item"] *,
+body.scrolling-active [class*="poster"] * {
+  box-sizing: border-box !important;
+  outline: none !important;
+  border: none !important;
+}
+
+/* ULTRA 200FPS: Disable transforms on non-essential elements during scroll */
+/* NOTE: play-icon-layer excluded as it requires transform for centering */
+body.scrolling-active [class*="meta-item-container"] > *:not(img):not([class*="poster-image"]):not([class*="play-icon-layer"]),
+body.scrolling-active [class*="poster-container"] > *:not(img):not([class*="poster-image"]):not([class*="play-icon-layer"]) {
+  transform: none !important;
+  -webkit-transform: none !important;
+}
+
+/* ========================= END ULTRA 200FPS OPTIMIZATIONS ========================= */
+
+/* Smooth scrolling on scrollable containers only */
+[class*="container"]:has([style*="overflow"]),
+[style*="overflow"] {
+  scroll-behavior: smooth !important;
+}
+
+/* glass effect: */
+/*     background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important; */
+
+html body {
+  background: var(--background) !important;
+  overflow-y: scroll !important;
+  scroll-behavior: smooth !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
+}
+
+::-webkit-scrollbar {
+  width: 0;  /* removes scrollbar track */
+  height: 0;
+}
+
+/* ========================= NAV BAR / HEADER ========================= */
+
+/* Force transparent background on nav bar parent container */
+[class*="main-nav-bars-container"],
+.main-nav-bars-container-wNjS5 {
+    --background: transparent !important;
+    background: none !important;
+    background-color: transparent !important;
+}
+
+/* Top horizontal nav bar - gradient blur effect */
+/* Target ALL horizontal nav bar classes including dynamic ones */
+.horizontal-nav-bar-container-Y_zvK,
+.horizontal-nav-bar-ji5GB,
+nav.horizontal-nav-bar-container-Y_zvK,
+nav.horizontal-nav-bar-ji5GB,
+[class*="horizontal-nav-bar-container"],
+[class*="horizontal-nav-bar-"],
+nav[class*="horizontal-nav-bar"] {
+    --background: transparent !important;
+    position: relative !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+    padding-left: 80px !important; /* Space for the icon */
+}
+
+/* Also target using attribute selector for any inline styles */
+nav[class*="horizontal-nav-bar"][style] {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* Ensure all children are above the pseudo-element */
+.horizontal-nav-bar-container-Y_zvK > *,
+.horizontal-nav-bar-ji5GB > *,
+[class*="horizontal-nav-bar-container"] > *,
+[class*="horizontal-nav-bar-"] > * {
+    position: relative !important;
+    z-index: 2 !important;
+}
+
+/* App icon in top left corner - will be injected via JavaScript */
+.app-icon-glass-theme {
+    position: absolute !important;
+    left: 38px !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 50px !important;
+    height: 50px !important;
+    object-fit: contain !important;
+    z-index: 100 !important;
+    pointer-events: none !important;
+    filter: brightness(0.6) drop-shadow(0 1px 4px rgba(0, 0, 0, 0.2)) !important;
+    opacity: 0.7 !important;
+}
+
+/* Gradient blur pseudo-element - covers ENTIRE nav bar with consistent blur */
+.horizontal-nav-bar-container-Y_zvK::before,
+.horizontal-nav-bar-ji5GB::before,
+nav.horizontal-nav-bar-container-Y_zvK::before,
+nav.horizontal-nav-bar-ji5GB::before,
+[class*="horizontal-nav-bar-container"]::before,
+[class*="horizontal-nav-bar-"]::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    /* Subtle gradient tint for depth - fades to fully transparent */
+    background: linear-gradient(to bottom,
+        rgba(15, 15, 15, 0.6) 0%,
+        rgba(15, 15, 15, 0.3) 30%,
+        rgba(15, 15, 15, 0.1) 60%,
+        transparent 100%) !important;
+    /* Consistent blur - SAME for scroll and idle */
+    backdrop-filter: blur(10px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+    /* Smooth gradient mask */
+    mask-image: linear-gradient(to bottom,
+        black 0%,
+        rgba(0, 0, 0, 0.85) 25%,
+        rgba(0, 0, 0, 0.5) 50%,
+        rgba(0, 0, 0, 0.15) 75%,
+        transparent 100%) !important;
+    -webkit-mask-image: linear-gradient(to bottom,
+        black 0%,
+        rgba(0, 0, 0, 0.85) 25%,
+        rgba(0, 0, 0, 0.5) 50%,
+        rgba(0, 0, 0, 0.15) 75%,
+        transparent 100%) !important;
+    z-index: 1 !important;
+    pointer-events: none !important;
+    /* GPU acceleration */
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+/* NO scroll performance changes for nav bar - keep blur consistent */
+
+/* Gradient blur for main navigation bar in routes container */
+/* NOTE: Excludes vertical-nav-bar to prevent double blur (it's already covered by horizontal-nav-bar::before) */
+#app > div[class*="router"] > div[class*="routes-container"] > div > div[class*="route-content"] > div > div > nav:not([class*="vertical-nav-bar"]),
+#app [class*="routes-container"] nav:not([class*="vertical-nav-bar"]),
+#app [class*="route-content"] nav:not([class*="vertical-nav-bar"]) {
+    position: relative !important;
+    background: transparent !important;
+}
+
+#app > div[class*="router"] > div[class*="routes-container"] > div > div[class*="route-content"] > div > div > nav:not([class*="vertical-nav-bar"])::before,
+#app [class*="routes-container"] nav:not([class*="vertical-nav-bar"])::before,
+#app [class*="route-content"] nav:not([class*="vertical-nav-bar"])::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    /* Subtle gradient tint for depth - fades to fully transparent */
+    background: linear-gradient(to bottom,
+        rgba(15, 15, 15, 0.6) 0%,
+        rgba(15, 15, 15, 0.3) 30%,
+        rgba(15, 15, 15, 0.1) 60%,
+        transparent 100%) !important;
+    /* Consistent blur - SAME for scroll and idle */
+    backdrop-filter: blur(10px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+    /* Smooth gradient mask */
+    mask-image: linear-gradient(to bottom,
+        black 0%,
+        rgba(0, 0, 0, 0.85) 25%,
+        rgba(0, 0, 0, 0.5) 50%,
+        rgba(0, 0, 0, 0.15) 75%,
+        transparent 100%) !important;
+    -webkit-mask-image: linear-gradient(to bottom,
+        black 0%,
+        rgba(0, 0, 0, 0.85) 25%,
+        rgba(0, 0, 0, 0.5) 50%,
+        rgba(0, 0, 0, 0.15) 75%,
+        transparent 100%) !important;
+    z-index: -1 !important;
+    pointer-events: none !important;
+    /* GPU acceleration */
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+/* Ensure vertical-nav-bar has NO ::before pseudo-element with blur */
+nav[class*="vertical-nav-bar"]::before {
+    content: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* NO scroll performance changes for routes nav - keep blur consistent */
+
+/* Search bar positioned next to settings nav on the right */
+/* NOTE: Removed backdrop-filter for unified blur across nav bar */
+.search-bar-container-asfq1.search-bar-h60ja {
+    position: absolute !important;
+    right: 70px !important; /* Position to the left of the settings/buttons area */
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 45px; /* Smaller collapsed width - just for icon */
+    height: 45px !important;
+    background: rgba(90, 90, 90, 0.35) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    opacity: 1 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    overflow: hidden !important;
+    z-index: 100 !important;
+
+    /* Smooth animation - optimized for GPU */
+    transition: width 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transform: translate3d(0, -50%, 0) !important;
+    -webkit-transform: translate3d(0, -50%, 0) !important;
+    will-change: width !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+/* Expanded state */
+.search-bar-container-asfq1.search-bar-h60ja:focus-within,
+.search-bar-container-asfq1.search-bar-h60ja:hover,
+.search-bar-container-asfq1.search-bar-h60ja.expanded {
+    width: 280px !important; /* Expanded width */
+    justify-content: space-between !important;
+}
+
+.search-bar-container-asfq1 .submit-button-container-MImNa {
+    align-items: center;
+    display: flex;
+    flex: none;
+    flex-direction: row;
+    height: var(--search-bar-size);
+    justify-content: center;
+    padding: 0 0.5rem;
+    min-width: 40px; /* Ensure icon always has space */
+    order: 2; /* Icon goes to the right when expanded */
+}
+
+/* Hide input when collapsed */
+.search-bar-container-asfq1 .search-input-IQ0ZW {
+    opacity: 0 !important;
+    width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    order: 1; /* Input goes to the left when expanded */
+
+    transition: opacity 0.15s ease-in-out 0.1s, width 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94), padding 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    will-change: opacity, width, padding !important;
+}
+
+/* Show input when expanded */
+.search-bar-container-asfq1:focus-within .search-input-IQ0ZW,
+.search-bar-container-asfq1:hover .search-input-IQ0ZW,
+.search-bar-container-asfq1.expanded .search-input-IQ0ZW {
+    opacity: 1 !important;
+    width: 100% !important;
+    padding: 8px 16px !important;
+    flex: 1 !important;
+}
+
+
+
+/* Search bar in horizontal nav - positioned to the left of buttons container */
+/* NOTE: Removed backdrop-filter for unified blur across nav bar */
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja {
+    position: absolute !important;
+    right: 140px !important; /* Position to the left of buttons container */
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 45px !important;
+    height: 45px !important;
+    background: rgba(90, 90, 90, 0.35) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    opacity: 1 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 100 !important;
+    transition: width 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transform: translate3d(0, -50%, 0) !important;
+    -webkit-transform: translate3d(0, -50%, 0) !important;
+    will-change: width !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+/* Expanded state for horizontal nav search bar */
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja:hover,
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja:focus,
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja:focus-within,
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja.expanded {
+    width: 280px !important; /* Expanded width */
+    justify-content: space-between !important;
+}
+
+/* Hide input when collapsed in horizontal nav */
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja .search-input-IQ0ZW {
+    opacity: 0 !important;
+    width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+
+    transition: opacity 0.15s ease-in-out 0.1s, width 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94), padding 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    will-change: opacity, width, padding !important;
+}
+
+/* Show input when expanded in horizontal nav */
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja:hover .search-input-IQ0ZW,
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja:focus .search-input-IQ0ZW,
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja:focus-within .search-input-IQ0ZW,
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja.expanded .search-input-IQ0ZW {
+    opacity: 1 !important;
+    width: 100% !important;
+    padding: 8px 16px !important;
+    flex: 1 !important;
+}
+
+/* Keep the search icon visible */
+.horizontal-nav-bar-container-Y_zvK .search-bar-h60ja .submit-button-container-MImNa {
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 35px !important;
+    order: 2 !important; /* Icon goes to the right when expanded */
+}
+
+/* Position the buttons container in the top right corner */
+#app nav[class*="horizontal-nav-bar"] [class*="buttons-container"],
+nav[class*="horizontal-nav-bar"] [class*="buttons-container-Oc5z1"] {
+  position: absolute !important;
+  right: 16px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  -webkit-transform: translateY(-50%) !important;
+  z-index: 100 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+/* Style any menu/button container in the top nav */
+/* NOTE: Removed backdrop-filter to prevent blur conflicts with nav bar */
+#app nav[class*="horizontal-nav-bar"] [class*="buttons-container"] > div[class*="button-container"],
+#app nav[class*="horizontal-nav-bar"] [class*="buttons-container"] > div[class*="menu-button-container"] {
+  background: rgba(90, 90, 90, 0.35) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  transform: scale(0.8) !important;
+  -webkit-transform: scale(0.8) !important;
+  opacity: 1 !important;
+}
+
+
+/* Hide the old Stremio logo completely - we're using our custom icon instead */
+#app [class*="horizontal-nav-bar"] [class*="logo-container"] [class*="logo"],
+#app [class*="horizontal-nav-bar"] [class*="logo-container"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* ========================= VERTICAL NAV / SIDEBAR ========================= */
+
+/* Position the vertical nav itself */
+#app [class*="main-nav-bars-container"] [class*="vertical-nav-bar"] {
+  position: absolute !important;
+  left: 91px !important;
+  top: 0.5px !important;
+  z-index: 1 !important;
+}
+
+/* Style the vertical nav container (layout, spacing, scroll) */
+#app [class*="vertical-nav-bar-container"] {
+  align-items: center !important;
+  background-color: transparent !important;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 1rem !important;
+  overflow-y: auto !important;
+  padding: 1rem 0 !important;
+  scrollbar-width: none !important;
+  width: auto !important;
+  position: relative !important;
+}
+
+/* Optional custom label you add in markup */
+.nav-label {
+  color: var(--primary-accent-color) !important;
+  font-weight: 600 !important;
+  padding: 0 5px !important;
+}
+
+/* Selected tab look */
+/* NOTE: Removed backdrop-filter for unified blur across nav bar */
+#app [class*="nav-tab-button-container"].selected {
+  background: rgba(70, 70, 70, 0.35) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  opacity: 1 !important;
+}
+
+/* Ensure nav content is flush left */
+#app [class*="main-nav-bars-container"] [class*="nav-content-container"] {
+  left: 0 !important;
+}
+
+/* Nav button sizing/padding */
+#app [class*="vertical-nav-bar-container"] [class*="nav-tab-button"] {
+  min-height: auto !important;
+  height: auto !important;
+  width: auto !important;
+  padding: 7px 10px !important;
+  transition: padding 0.2s ease-out !important;
+}
+
+.meta-row-container-xtlB1 .meta-items-container-qcuUA .meta-item-QFHCh.poster-shape-poster-LKBza {
+    flex: calc(1 / var(--poster-shape-ratio)) 0 250px !important;
+}
+
+/* account dropdown */
+/* settings menu */
+.poster-image-NiV7O:hover{
+    cursor:pointer;
+}
+
+/* settings menu */
+
+.nav-menu-container-Pl25j, .nav-menu-container-Pl25j {
+  background-color: transparent !important;
+}
+
+.label-container-XOyzm, .menu-container-B6cqK {
+  background-color: transparent !important;
+}
+
+.label-container-XOyzm {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.menu-container-B6cqK {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.modal-container-OuxEF .modal-dialog-container-DZMKq {
+    background-color: #00000093;
+    backdrop-filter: var(--backdrop-filter);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+}
+
+.label-container-_VXZt {
+  display: none !important;
+}
+
+.player-container-wIELK .layer-qalDW.menu-layer-HZFG9 {
+  background: rgba(70, 70, 70, 0.22) !important;
+  border-radius: 999px !important;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.2) , 
+    0 4px 16px rgba(0, 0, 0, 0.1) , 
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) , 
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: var(--backdrop-filter) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  opacity: 1 !important;
+}
+
+.option-container-m_jZq {
+    height: 1.5rem;
+    border-radius: 0.4rem;
+    padding: 0 0.7rem;
+}
+
+.slider-container-nJz5F .track-gItfW {
+    background-color: #ffffff;
+}
+
+.seek-bar-container-JGGTa .slider-hBDOf .thumb-PiTF5, .seek-bar-container-JGGTa .slider-hBDOf .track-after-pUXC0 {
+    background-color: #ffffff;
+}
+
+.seek-bar-container-JGGTa .slider-hBDOf .thumb-PiTF5:after {
+    box-shadow: none;
+}
+
+.control-bar-container-xsWA7 .seek-bar-I7WeY {
+    --thumb-size: .9rem;
+}
+
+/* title container */
+[class*="meta-item-container"] [class*="title-bar-container"] {
+    display: flex;
+    flex-direction: column;   
+    align-items: stretch;     
+    justify-content: flex-start; 
+    height: auto;             
+    overflow: visible;
+    padding: 0;               
+    position: relative;       
+}
+
+/* progress-bar container */
+[class*="meta-item-container"] [class*="title-bar-container"] [class*="progress-bar-layer"] {
+    height: 0.45rem;
+    border-radius: 0.45rem;
+    overflow: hidden;
+    align-self: stretch;
+    padding: inherit;
+    margin-top: 10px;
+    margin-left: 1.8rem;
+    margin-right: 1.8rem;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* foreground */
+[class*="meta-item-container"] [class*="progress-bar-layer"] [class*="progress-bar-w"] {
+    background-color: var(--primary-foreground-color);
+    height: 100%;
+    position: relative;
+}
+
+[class*="meta-item-container"] [class*="progress-bar-layer"] [class*="progress-bar-background"] {
+    background-color: transparent;
+    opacity: 0.3;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+}
+
+[class*="meta-item-container"] [class*="title-bar-container"] > *:not([class*="progress-bar-layer"]) {
+    order: 1;                
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    margin: none;         
+    min-height: 1.3rem;         
+}
+
+.meta-item-container-Tj0Ib .title-bar-container-1Ba0x .menu-label-container-ChuX8 .icon-gh1t9 {
+  visibility: hidden;
+}
+
+[class*="meta-item-container"] [class*="title-bar-container"] [class*="title"],
+[class*="meta-item-container"] [class*="title-bar-container"] [class*="title-bar"] {
+    margin-top: 0;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+[class*="meta-item-container"] [class*="title-bar-container"]:not(:has(> [class*="progress-bar-layer"])) > *:first-child {
+    margin-top: 0.35rem;
+}
+
+/* scroll fix for hero */
+.main-nav-bars-container-wNjS5 .nav-content-container-zl9hQ {
+  top: calc(var(--horizontal-nav-bar-size) - 80px);
+}
+
+/* Hero Section */
+.hero-container {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  height: 80%;
+  overflow: hidden;
+}
+
+.hero-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  
+  -webkit-mask-image: 
+    linear-gradient(to top, transparent, black 45%),
+    linear-gradient(to right, transparent, black 75%);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: cover;
+  -webkit-mask-composite: intersect;
+  
+  mask-image: 
+    linear-gradient(to top, transparent, black 45%),
+    linear-gradient(to right, transparent, black 75%);
+  mask-repeat: no-repeat;
+  mask-size: cover;
+  mask-composite: intersect;
+
+
+  
+}
+
+.hero-overlay {
+  position: absolute;
+  width: 100%;
+  padding-left: 6%;
+  bottom: 0;
+
+  color: white;
+
+  font-family: 'Inter', sans-serif !important;
+}
+
+.hero-overlay-image {
+  width: 90%;
+  max-width: 420px;
+  margin-bottom: 30px;
+}
+
+.hero-overlay-description {
+  max-width: 500px;
+  font-size: 17px;
+  margin-bottom: 20px;
+  color: white; 
+  font: normal;
+}
+
+.hero-overlay-info {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  margin-bottom: 30px;
+  font-weight: 600;
+  color: rgba(190, 190, 190, 1)
+}
+
+.hero-overlay-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 50px;
+}
+
+.hero-overlay-button-watch, .hero-overlay-button {
+  border: 0;
+  outline: 0;
+  padding: 8px 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: white;
+  transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), background-color 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  will-change: transform, opacity, background-color !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+}
+
+.hero-overlay-button {
+  background: rgba(70, 70, 70, 0.22) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+  backdrop-filter: var(--backdrop-filter);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  opacity: 1 !important;
+}
+
+.hero-overlay-button-watch {
+  background: rgb(0 0 0 / 41%) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+  backdrop-filter: var(--backdrop-filter);
+  opacity: 1 !important;
+}
+
+.hero-overlay-button-watch:hover,
+.hero-overlay-button:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
+  -webkit-transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
+}
+
+/* only do this if  */
+#app [class*="nav-tab-button-container"]:not(.selected) .board-container-DTN_b .board-content-container-ToQTz .board-content-nPWv1 {
+  padding: 0;
+}
+
+/* Fix spacing for Discover page */
+.discover-container-L6OGL .discover-content-CRsRg .catalog-container-VNK_T .selectable-inputs-container-IRz50 {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+.discover-container-L6OGL .discover-content-CRsRg {
+    padding-top: 70px !important;
+    margin-top: 0 !important;
+}
+
+#app [class*="nav-tab-button-container"]:not(.selected) .meta-item-container-Tj0Ib {
+  overflow: visible;
+  padding: 0.2rem;
+}
+
+/* Fix spacing for Library page */
+.library-container-zM_bj .library-content-PgX4O .selectable-inputs-container-hR3or {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+.library-container-zM_bj .library-content-PgX4O {
+    padding-top: 70px !important;
+    margin-top: 0 !important;
+}
+
+.calendar-cH2jw .content-wBwrQ {
+    margin-top: 0 !important;
+    padding: 70px 0 0 0 !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    overflow: visible !important;
+}
+
+/* Ensure calendar container is visible and properly positioned */
+.calendar-cH2jw {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    width: 100% !important;
+    height: auto !important;
+}
+
+/* Fix spacing for Addons page */
+.addons-container-ogGYu .addons-content-zhFBl .selectable-inputs-container-tUul1 {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+.addons-container-ogGYu .addons-content-zhFBl {
+    padding-top: 70px !important;
+    margin-top: 0 !important;
+}
+
+/* Fix spacing for Settings page */
+.settings-container-_g1tS .settings-content-co5eU .sections-container-ZaZpD {
+    padding: 2rem 3rem !important;
+    padding-top: 1rem !important;
+}
+
+.settings-container-_g1tS .settings-content-co5eU {
+    padding-top: 70px !important;
+    margin-top: 0 !important;
+}
+
+.discover-container-L6OGL .discover-content-CRsRg .catalog-container-VNK_T .meta-items-container-n8vNz {
+    padding: 0;
+    z-index: 1;
+}
+
+.discover-container-L6OGL .discover-content-CRsRg .catalog-container-VNK_T .meta-items-container-n8vNz {
+    align-items: center;
+    align-self: stretch;
+    display: grid;
+    flex: 1;
+    grid-auto-rows: max-content;
+    grid-gap: 0;
+    margin-right: 1rem;
+    overflow-y: auto;
+}
+
+.search-container-uXEFf .search-content-LX6un {
+    height: 100%;
+    overflow-y: auto;
+    padding: 0 1rem;
+    padding-top: 0 !important;
+    width: 100%;
+}
+
+/* hero */
+.hero-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+}
+
+.hero-control-btn {
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    backdrop-filter: blur(6px)  !important;
+    -webkit-backdrop-filter: blur(6px)  !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    visibility: hidden;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: transform, opacity !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+.hero-control-btn:hover {
+    background: rgba(0, 0, 0, 0.7);
+    transform: translate3d(0, 0, 0) scale3d(1.05, 1.05, 1) !important;
+    -webkit-transform: translate3d(0, 0, 0) scale3d(1.05, 1.05, 1) !important;
+}
+
+.hero-indicators {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+}
+
+.hero-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: transform, opacity !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+.hero-indicator:hover {
+    background: rgba(255, 255, 255, 0.6);
+    transform: translate3d(0, 0, 0) scale3d(1.2, 1.2, 1) !important;
+    -webkit-transform: translate3d(0, 0, 0) scale3d(1.2, 1.2, 1) !important;
+}
+
+.hero-indicator.active {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+#heroImage, #heroLogo, #heroDescription, #heroInfo {
+    transition: opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    will-change: opacity !important;
+}
+
+.hero-overlay-button-watch svg,
+.hero-overlay-button svg {
+    margin-right: 4px;
+}
+
+/* IMDB Icon and Rating Styles */
+.rating-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.imdb-icon {
+    width: 16px;
+    height: 16px;
+    fill: #f5c518;
+    color: #f5c518;
+    flex-shrink: 0;
+}
+
+#heroLoadingScreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 999999 !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.loading-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 50%, #0c0c0c 100%);
+    background-size: 400% 400%;
+    animation: gradientShift 8s ease-in-out infinite;
+}
+
+.loading-content {
+    position: relative !important;
+    z-index: 10;
+    text-align: center;
+    color: white;
+    transform: none !important;
+    top: auto !important;
+    left: auto !important;
+}
+
+#heroLoadingScreen .loading-content {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+}
+
+/* Prevent any interference during ghost clicks */
+body.ghost-clicking {
+    overflow: hidden !important;
+}
+
+body.ghost-clicking #heroLoadingScreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+}
+
+
+
+.loading-logo-container {
+    position: relative;
+    display: inline-block;
+    height: 100px;
+    margin-bottom: 30px;
+}
+
+.loading-logo {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+    animation: logoFloat 3s ease-in-out infinite;
+    position: relative;
+    z-index: 2;
+}
+
+.loading-pulse {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.loading-text {
+    font-size: 16px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 20px;
+    min-height: 20px;
+    transition: opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    text-shadow: 0 0 10px rgba(139, 69, 255, 0.3);
+    will-change: opacity, transform !important;
+}
+
+.loading-bar {
+    width: 200px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 1px;
+    overflow: hidden;
+    margin: 0 auto;
+    position: relative;
+}
+
+.loading-progress {
+    height: 100%;
+    background: #fff;
+    border-radius: 1px;
+    width: 0%;
+    transition: width 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    will-change: width !important;
+    position: relative;
+    overflow: hidden;
+}
+
+/* GPU-accelerated shimmer overlay using transform instead of background-position */
+.loading-progress::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: shimmerSlide 2s linear infinite;
+    will-change: transform;
+}
+
+/* Removed non-GPU gradientShift animation - was causing repaints */
+
+@keyframes logoFloat {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    50% { transform: translate3d(0, -10px, 0); }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: translate3d(-50%, -50%, 0) scale3d(1, 1, 1);
+        opacity: 0.7;
+    }
+    50% {
+        transform: translate3d(-50%, -50%, 0) scale3d(1.2, 1.2, 1);
+        opacity: 0.3;
+    }
+}
+
+/* GPU-accelerated shimmer using transform instead of background-position */
+@keyframes shimmerSlide {
+    0% { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(300%, 0, 0); }
+}
+
+/* ========================= ENHANCED VERTICAL NAV ANIMATIONS ========================= */
+
+/* Base nav container with smooth positioning */
+#app [class*="vertical-nav-bar-container"] {
+  align-items: center !important;
+  background-color: transparent !important;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 1rem !important;
+  overflow-y: auto !important;
+  padding: 1rem 0 !important;
+  scrollbar-width: none !important;
+  width: auto !important;
+  position: relative !important;
+}
+
+/* Enhanced nav button base styling with smooth transitions */
+#app [class*="nav-tab-button-container"] {
+  position: relative !important;
+  overflow: hidden !important;
+  transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  border-radius: 999px !important;
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+  will-change: transform !important;
+}
+
+/* Smooth hover effects for non-selected tabs - simplified to prevent blur issues */
+#app [class*="nav-tab-button-container"]:not(.selected):hover {
+  background: rgba(90, 90, 90, 0.25) !important;
+}
+
+/* Enhanced selected tab styling with smoother appearance */
+/* NOTE: Removed backdrop-filter to prevent blur conflicts with nav bar */
+#app [class*="nav-tab-button-container"].selected {
+  background: rgba(70, 70, 70, 0.35) !important;
+  border-radius: 999px !important;
+  /* Simplified shadow */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  opacity: 1 !important;
+  transform: translate3d(0, 0, 0) scale3d(1, 1, 1) !important;
+  -webkit-transform: translate3d(0, 0, 0) scale3d(1, 1, 1) !important;
+}
+
+/* Smooth nav label animations - GPU accelerated */
+.nav-label {
+  color: var(--primary-accent-color) !important;
+  font-weight: 600 !important;
+  padding: 0 5px !important;
+  transition: color 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  will-change: transform, opacity !important;
+  transform: translate3d(0, 1px, 0) !important;
+  -webkit-transform: translate3d(0, 1px, 0) !important;
+}
+
+/* Selected label enhancement */
+#app [class*="nav-tab-button-container"].selected .nav-label {
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+}
+
+/* Non-selected label subtle animation */
+#app [class*="nav-tab-button-container"]:not(.selected) .nav-label {
+  color: rgba(255, 255, 255, 0.7) !important;
+  transform: translate3d(0, 1px, 0) !important;
+  -webkit-transform: translate3d(0, 1px, 0) !important;
+}
+
+/* Hover effect for labels */
+#app [class*="nav-tab-button-container"]:not(.selected):hover .nav-label {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Enhanced nav button sizing/padding with transitions */
+#app [class*="vertical-nav-bar-container"] [class*="nav-tab-button"] {
+  min-height: auto !important;
+  height: auto !important;
+  width: auto !important;
+  padding: 7px 10px !important;
+  transition: padding 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+}
+
+/* Subtle active/press effect - simplified to prevent blur issues */
+#app [class*="nav-tab-button-container"]:active {
+  background: rgba(90, 90, 90, 0.35) !important;
+}
+
+/* Smooth focus states */
+#app [class*="nav-tab-button-container"]:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.3) !important;
+  outline-offset: 2px !important;
+  transition: outline 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+/* Removed hover indicator animation to prevent blur issues */
+
+.menu-xeE06 {
+    padding: 7rem 1.5rem !important;
+}
+
+.custom-episode-title {
+    font-size: 1em !important;
+    font-weight: normal !important;
+    margin-left: 11px !important;
+    color: rgb(204, 204, 204) !important;
+}
+
+.custom-series-name {
+    font-size: 2.4rem !important;
+    font-weight: bold !important;
+    margin-bottom: 4px !important;
+    margin-left: 11px !important;
+    color: rgb(255, 255, 255) !important;
+}
+
+.seek-bar-container-JGGTa .label-QFbsS {
+    width: none !important;
+}
+
+.control-bar-container-xsWA7 .control-bar-buttons-container-SWhkU .control-bar-button-FQUsj .icon-qy6I6 {
+    height: 2.3rem !important;
+}
+
+.control-bar-container-xsWA7 .control-bar-buttons-container-SWhkU .control-bar-button-FQUsj {
+    height: none !important;
+}
+
+.control-bar-container-xsWA7 .control-bar-buttons-container-SWhkU {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    background: rgba(70, 70, 70, 0.22) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+    margin-bottom: 15px !important;
+    margin-top: 5px !important;
+    height: 50px !important;
+}
+
+.slider-container-nJz5F .track-gItfW {
+    background: rgba(255, 255, 255, 0.62) !important;
+    border-radius: 999px !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+    flex: 1;
+    height: var(--track-size);
+    width: 100%;
+    z-index: 0;
+}
+
+.seek-bar-container-JGGTa .slider-hBDOf {
+    margin: none !important;
+}
+
+.icon-qy6I6 {
+  width: 2.3rem !important;
+}
+
+.control-bar-container-xsWA7 .control-bar-buttons-container-SWhkU .control-bar-button-FQUsj:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), background-color 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: transform, opacity, background-color !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+.player-container-wIELK .layer-qalDW.side-drawer-button-layer-RrB8k {
+    left: initial;
+    position: fixed;
+    right: -4rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(70, 70, 70, 0.22) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+/* ========================= PLAY BUTTON CLEAN HOVER EFFECT ========================= */
+
+/* Ensure poster container is positioned for absolute overlays */
+.meta-item-container-Tj0Ib .poster-container-qkw48 {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+/* DEFAULT STATE: Center play button */
+.meta-item-container-Tj0Ib .poster-container-qkw48 .play-icon-layer-vpQIo {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    /* Use translate3d for GPU acceleration and ensure perfect centering */
+    transform: translate3d(-50%, -50%, 0) !important;
+    -webkit-transform: translate3d(-50%, -50%, 0) !important;
+    z-index: 10 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    /* Ensure no layout shifts */
+    width: auto !important;
+    height: auto !important;
+}
+
+/* Hide ALL background layers that create dark squares/boxes behind play button */
+.meta-item-container-Tj0Ib .poster-container-qkw48 .play-icon-layer-vpQIo .play-icon-background-Uazjh,
+.meta-item-container-Tj0Ib .poster-container-qkw48 .play-icon-layer-vpQIo .play-icon-background-Uazjh::before,
+.meta-item-container-Tj0Ib .poster-container-qkw48 .play-icon-layer-vpQIo .play-icon-background-Uazjh::after,
+.meta-item-container-Tj0Ib .poster-container-qkw48 .play-icon-layer-vpQIo [class*="background"],
+.meta-item-container-Tj0Ib .poster-container-qkw48 .play-icon-layer-vpQIo [class*="backdrop"] {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    background: transparent !important;
+}
+
+/* Default play button ring - subtle and clean - GPU optimized */
+/* Note: Parent layer already centers with translate(-50%, -50%), so no additional transform needed */
+.meta-item-container-Tj0Ib .poster-container-qkw48 .play-icon-layer-vpQIo .play-icon-outer-r3iKR {
+    background: rgba(255, 255, 255, 0.3) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+    backdrop-filter: blur(8px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(130%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    /* Remove transform since parent layer is already centered */
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: transform !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+    /* Ensure proper centering within the flex container */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Default play icon color - GPU optimized */
+.meta-item-container-Tj0Ib .poster-container-qkw48 .play-icon-layer-vpQIo .play-icon-QmEEA {
+    color: rgba(255, 255, 255, 0.9) !important;
+    transition: opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), filter 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    will-change: opacity, filter !important;
+}
+
+/* Create full-poster gray overlay on hover (hidden by default) - GPU optimized */
+.meta-item-container-Tj0Ib .poster-container-qkw48::before {
+    content: '';
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(0, 0, 0, 0.4) !important;
+    opacity: 0 !important;
+    z-index: 5 !important;
+    pointer-events: none !important;
+    transition: opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    border-radius: inherit !important;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: opacity !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+/* HOVER STATE: Show gray overlay over entire poster */
+.meta-item-container-Tj0Ib .poster-container-qkw48:hover::before {
+    opacity: 1 !important;
+}
+
+/* Disable overlay during scroll */
+body.scrolling-active .meta-item-container-Tj0Ib .poster-container-qkw48:hover::before,
+body.performance-mode .meta-item-container-Tj0Ib .poster-container-qkw48:hover::before {
+    opacity: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* HOVER STATE: Frosted white glass play button ring - GPU accelerated */
+.meta-item-container-Tj0Ib .poster-container-qkw48:hover .play-icon-layer-vpQIo .play-icon-outer-r3iKR {
+    background: rgba(255, 255, 255, 0.45) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: blur(10px) saturate(140%) brightness(105%) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(140%) brightness(105%) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.5) !important;
+    /* Only scale, no translate since parent is already centered */
+    transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
+    -webkit-transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
+}
+
+/* Completely disable play button blur and effects during scroll */
+body.scrolling-active .meta-item-container-Tj0Ib .poster-container-qkw48:hover .play-icon-layer-vpQIo .play-icon-outer-r3iKR,
+body.performance-mode .meta-item-container-Tj0Ib .poster-container-qkw48:hover .play-icon-layer-vpQIo .play-icon-outer-r3iKR {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(255, 255, 255, 0.2) !important;
+    box-shadow: none !important;
+    /* Match normal state transform - parent already handles centering */
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+/* HOVER STATE: Bright white play icon */
+.meta-item-container-Tj0Ib .poster-container-qkw48:hover .play-icon-layer-vpQIo .play-icon-QmEEA {
+    color: rgba(255, 255, 255, 1) !important;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)) !important;
+}
+
+/* ========================= WATCHED FLAG GLASS STYLING ========================= */
+
+/* Watched flag container - keep original position */
+.upcoming-watched-container-msCaq {
+    z-index: 20 !important;
+}
+
+/* Watched flag inner container - glass morphism with yellow tinge - GPU optimized */
+.upcoming-watched-container-msCaq .watched-container-gvzs3 {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 6px 12px !important;
+    background: rgba(255, 220, 100, 0.35) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 240, 150, 0.5) !important;
+    backdrop-filter: blur(8px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(130%) !important;
+    border: 1px solid rgba(255, 200, 80, 0.4) !important;
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: transform !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+/* Hover effect for watched flag - GPU accelerated */
+.upcoming-watched-container-msCaq .watched-container-gvzs3:hover {
+    background: rgba(255, 210, 80, 0.45) !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 240, 150, 0.6) !important;
+    backdrop-filter: blur(8px) saturate(140%) brightness(105%) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(140%) brightness(105%) !important;
+    border: 1px solid rgba(255, 190, 60, 0.5) !important;
+    transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
+    -webkit-transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
+}
+
+/* Watched flag icon - GPU optimized */
+.upcoming-watched-container-msCaq .flag-icon-RDrvf {
+    width: 14px !important;
+    height: 14px !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3)) !important;
+    transition: opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), filter 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: filter, opacity !important;
+}
+
+/* Watched flag label - GPU optimized */
+.upcoming-watched-container-msCaq .flag-label-zJloD {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+    letter-spacing: 0.3px !important;
+    transition: opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), filter 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    will-change: opacity, filter !important;
+}
+
+/* Enhance on hover */
+.upcoming-watched-container-msCaq .watched-container-gvzs3:hover .flag-icon-RDrvf,
+.upcoming-watched-container-msCaq .watched-container-gvzs3:hover .flag-label-zJloD {
+    color: rgba(255, 255, 255, 1) !important;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)) !important;
+}
+
+/* ========================= UPCOMING FLAG GLASS STYLING (GREEN) ========================= */
+
+/* Upcoming flag container - keep original position */
+.upcoming-watched-container-msCaq {
+    z-index: 20 !important;
+}
+
+/* Upcoming flag inner container - glass morphism with green tinge - GPU optimized */
+.upcoming-watched-container-msCaq .upcoming-container-LXfQ7 {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 6px 12px !important;
+    background: rgba(100, 255, 150, 0.35) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(150, 255, 180, 0.5) !important;
+    backdrop-filter: blur(8px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(130%) !important;
+    border: 1px solid rgba(80, 255, 120, 0.4) !important;
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: transform !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+/* Hover effect for upcoming flag - GPU accelerated */
+.upcoming-watched-container-msCaq .upcoming-container-LXfQ7:hover {
+    background: rgba(90, 255, 140, 0.45) !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(150, 255, 180, 0.6) !important;
+    backdrop-filter: blur(8px) saturate(140%) brightness(105%) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(140%) brightness(105%) !important;
+    border: 1px solid rgba(70, 255, 110, 0.5) !important;
+    transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
+    -webkit-transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
+}
+
+/* Upcoming flag label - GPU optimized */
+.upcoming-watched-container-msCaq .upcoming-container-LXfQ7 .flag-label-zJloD {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+    letter-spacing: 0.3px !important;
+    transition: opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), filter 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    will-change: opacity, filter !important;
+}
+
+/* Enhance on hover */
+.upcoming-watched-container-msCaq .upcoming-container-LXfQ7:hover .flag-label-zJloD {
+    color: rgba(255, 255, 255, 1) !important;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)) !important;
+}
+
+.meta-item-container-Tj0Ib {
+    overflow: hidden;
+}
+
+.custom-icon {
+    width: 1.9rem !important;
+    height: 1.6rem !important;
+}
+
+/* SHIT CODE WARNING
+   TODO: Clean up this code cant rn cuz im lazy */
+.nav-menu-container-Pl25j, .nav-menu-container-Pl25j {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.meta-links-container-dh69_ .links-container-C8Mw9 .link-container-gHxPW {
+  background: rgba(70, 70, 70, 0.22) !important;
+  backdrop-filter: var(--backdrop-filter) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  box-shadow: 0 0px 0px rgba(0, 0, 0, 0.2), 0 0px 10px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+}
+
+.meta-preview-container-o22hc .action-buttons-container-XbKVa .action-button-XIZa3.wide {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.meta-preview-container-o22hc .ratings-zUtHH {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.meta-preview-container-o22hc .action-buttons-container-XbKVa .action-button-XIZa3 {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.chip-L3r9A.active-jnhyP {
+  background: rgba(70, 70, 70, 0.22) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: var(--backdrop-filter) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.addon-details-modal-container-aBFaQ .cancel-button-zuUX6 {
+  background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+    opacity: 1;
+}
+
+.modal-container-OuxEF .modal-dialog-container-DZMKq {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.meta-item-container-Tj0Ib .poster-container-qkw48,
+.meta-item-container-Tj0Ib .poster-image-NiV7O {
+  position: relative !important; /* ensure overlay absolutely positions over poster */
+}
+
+/* Make sure the watched layer covers the full poster image (not the small icon circle) */
+.meta-item-container-Tj0Ib .poster-container-qkw48 .watched-icon-layer-bi3DO,
+.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  background: rgba(0, 0, 0, 0.55) !important; /* darken the poster image */
+  color: #fff !important;
+  z-index: 50 !important;
+  border-radius: inherit !important;
+  backdrop-filter: var(--backdrop-filter) !important;
+  border: 0 !important;
+  pointer-events: none !important; /* let clicks pass through if needed */
+  opacity: 1 !important;
+  transition: opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  will-change: opacity !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+}
+
+/* Hide any existing inner icons/svg so only our pseudo-elements show */
+.meta-item-container-Tj0Ib .poster-container-qkw48 .watched-icon-layer-bi3DO > *,
+.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO > *,
+.meta-item-container-Tj0Ib .poster-container-qkw48 .watched-icon-layer-bi3DO svg,
+.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO svg,
+.meta-item-container-Tj0Ib .poster-container-qkw48 .watched-icon-layer-bi3DO .icon,
+.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO .icon {
+  display: none !important;
+}
+
+/* Ensure no padding/margins interfere with centering */
+.meta-item-container-Tj0Ib .poster-container-qkw48 .watched-icon-layer-bi3DO,
+.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO {
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* White checkmark */
+.meta-item-container-Tj0Ib .poster-container-qkw48 .watched-icon-layer-bi3DO::before,
+.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO::before {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 20px;
+  border-left: 4px solid #fff;
+  border-bottom: 4px solid #fff;
+  transform: rotate(-45deg);
+  margin-bottom: 6px; /* spacing between check and label */
+  box-sizing: border-box;
+}
+
+/* Watched label */
+.meta-item-container-Tj0Ib .poster-container-qkw48 .watched-icon-layer-bi3DO::after,
+.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO::after {
+  content: 'Watched';
+  display: block;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  text-transform: none;
+}
+
+/* ========================= DROPDOWN MENUS - GLASS BLUR ========================= */
+
+/* All dropdown containers - strong glass blur for readability */
+.dropdown-MWaxp,
+[class*="dropdown"],
+[class*="menu-container"][class*="open"],
+.multiselect-menu-qMdaj .dropdown-MWaxp,
+[class*="select-input"] [class*="dropdown"],
+[class*="multiselect"] [class*="dropdown"] {
+    background: rgba(30, 30, 30, 0.92) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(10px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 12px !important;
+}
+
+/* Dropdown option items */
+[class*="dropdown"] [class*="option"],
+[class*="dropdown"] [class*="item"],
+.dropdown-MWaxp [class*="option"],
+.dropdown-MWaxp > div {
+    background: transparent !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    transition: background-color 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    will-change: background-color, opacity !important;
+}
+
+/* Dropdown option hover state */
+[class*="dropdown"] [class*="option"]:hover,
+[class*="dropdown"] [class*="item"]:hover,
+.dropdown-MWaxp [class*="option"]:hover,
+.dropdown-MWaxp > div:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Dropdown option selected/active state */
+[class*="dropdown"] [class*="option"][class*="selected"],
+[class*="dropdown"] [class*="option"][class*="active"],
+[class*="dropdown"] [class*="item"][class*="selected"],
+.dropdown-MWaxp [class*="selected"] {
+    background: rgba(255, 255, 255, 0.18) !important;
+}
+
+/* Open dropdown state */
+.open-yuN4f,
+[class*="open"] {
+    background: rgba(30, 30, 30, 0.92) !important;
+    backdrop-filter: blur(10px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+}
+
+.search-bar-container-p4tSt {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.addons-container-ogGYu .addons-content-zhFBl .selectable-inputs-container-tUul1 .select-input-container-KqG8N {
+     background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.add-addon-modal-container-KR5ny .modal-dialog-content-Xgv7Z .addon-url-input-ucetZ:focus, .add-addon-modal-container-KR5ny .modal-dialog-content-Xgv7Z .addon-url-input-ucetZ:hover {
+     background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.option-vFOAS .content-P2T0i .button {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.multiselect-menu-qMdaj .multiselect-button-XXdgA {
+      background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 0.1px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.cell-l3eWl.today-G8kuO .heading-TYXvp .day-nttmc {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.shortcut-container-iOrn9 kbd {
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 0px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.library-container-zM_bj .library-content-PgX4O .selectable-inputs-container-hR3or .select-input-container-H1VZ1 {
+    /* background-color: var(--overlay-color); */
+    flex-basis: 20rem;
+    flex-grow: 0;
+    flex-shrink: 1;
+    height: 3.2rem;
+    background: rgba(70, 70, 70, 0.22) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+/* ========================= SIDE DRAWER (EPISODE LIST) GLASS STYLING ========================= */
+
+/* Side drawer main container - glass background */
+/* IMPORTANT: Always keep blur even during scroll for visual consistency */
+.side-drawer-r9EuA.side-drawer-layer-CZtJ1,
+[class*="side-drawer"][class*="side-drawer-layer"] {
+    background: rgba(20, 20, 20, 0.85) !important;
+    backdrop-filter: blur(10px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Force side drawer blur to remain during scroll - override performance optimization */
+body.scrolling-active [class*="side-drawer"],
+body.performance-mode [class*="side-drawer"],
+body.scrolling-active .side-drawer-r9EuA.side-drawer-layer-CZtJ1,
+body.performance-mode .side-drawer-r9EuA.side-drawer-layer-CZtJ1 {
+    backdrop-filter: blur(10px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+}
+
+/* Close button - glass style */
+.side-drawer-r9EuA .close-button-ruzkn {
+    background: rgba(70, 70, 70, 0.25) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+    backdrop-filter: blur(6px)  !important;
+    -webkit-backdrop-filter: blur(6px)  !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), background-color 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: transform, opacity, background-color !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+.side-drawer-r9EuA .close-button-ruzkn:hover {
+    background: rgba(90, 90, 90, 0.35) !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    transform: translate3d(0, 0, 0) scale3d(1.05, 1.05, 1) !important;
+    -webkit-transform: translate3d(0, 0, 0) scale3d(1.05, 1.05, 1) !important;
+}
+
+/* Season navigation buttons */
+.seasons-bar-container-nOZjG .prev-season-button-bs1GQ,
+.seasons-bar-container-nOZjG .next-season-button-RrYAq {
+    background: rgba(70, 70, 70, 0.25) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(6px)  !important;
+    -webkit-backdrop-filter: blur(6px)  !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), background-color 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: transform, opacity, background-color !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+.seasons-bar-container-nOZjG .prev-season-button-bs1GQ:not(.disabled):hover,
+.seasons-bar-container-nOZjG .next-season-button-RrYAq:not(.disabled):hover {
+    background: rgba(90, 90, 90, 0.35) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+    transform: translate3d(0, -1px, 0) !important;
+    -webkit-transform: translate3d(0, -1px, 0) !important;
+}
+
+.seasons-bar-container-nOZjG .prev-season-button-bs1GQ.disabled,
+.seasons-bar-container-nOZjG .next-season-button-RrYAq.disabled {
+    opacity: 0.4 !important;
+}
+
+/* Season selector dropdown */
+.seasons-bar-container-nOZjG .multiselect-menu-qMdaj .multiselect-button-XXdgA {
+    background: rgba(70, 70, 70, 0.25) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(6px)  !important;
+    -webkit-backdrop-filter: blur(6px)  !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), background-color 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
+    will-change: transform, opacity, background-color !important;
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+}
+
+.seasons-bar-container-nOZjG .multiselect-menu-qMdaj .multiselect-button-XXdgA:hover {
+    background: rgba(90, 90, 90, 0.35) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Episode list items - glass cards */
+.side-drawer-r9EuA .video-container-ezBpK {
+    background: rgba(50, 50, 50, 0.2) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+    backdrop-filter: blur(8px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    margin-bottom: 8px !important;
+}
+
+/* Episode thumbnail styling */
+.side-drawer-r9EuA .thumbnail-container-Zm8Cl {
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    position: relative !important;
+}
+
+/* Play button icon in side drawer - frosted glass style */
+.side-drawer-r9EuA .icon-rAZvO,
+.side-drawer-r9EuA svg[viewBox="0 0 512 512"]:has(path[d*="231.137"]) {
+    width: 48px !important;
+    height: 48px !important;
+    padding: 12px !important;
+    background: rgba(255, 255, 255, 0.3) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+    backdrop-filter: blur(8px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(130%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Container for play icon if it exists */
+.side-drawer-r9EuA .thumbnail-container-Zm8Cl > svg,
+.side-drawer-r9EuA .thumbnail-container-Zm8Cl [class*="icon"] {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 10 !important;
+}
+
+
+
+/* Episode progress bar - glass style */
+.side-drawer-r9EuA .progress-bar-container-w8eFT {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 2px !important;
+    overflow: hidden !important;
+}
+
+.side-drawer-r9EuA .progress-bar-E23CT {
+    background: rgba(255, 255, 255, 0.9) !important;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5) !important;
+    border-radius: 2px !important;
+}
+
+.side-drawer-r9EuA .progress-bar-background-Q7aEH {
+    background: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Episode title styling */
+.side-drawer-r9EuA .title-container-NcfV9 {
+    font-weight: 600 !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Release date label */
+.side-drawer-r9EuA .released-container-XLPqf {
+    color: rgba(255, 255, 255, 0.6) !important;
+    font-size: 11px !important;
+}
+
+/* Meta preview container at top */
+.side-drawer-r9EuA .side-drawer-meta-preview-pB8v6 {
+    background: rgba(50, 50, 50, 0.25) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(8px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(130%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding: 16px !important;
+    margin-bottom: 16px !important;
+}
+
+/* Show logo */
+.side-drawer-r9EuA .logo-X3hTV {
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5)) !important;
+}
+
+/* Description text */
+.side-drawer-r9EuA .description-container-yi8iU {
+    color: rgba(255, 255, 255, 0.8) !important;
+    line-height: 1.5 !important;
+}
+
+/* Runtime and release labels */
+.side-drawer-r9EuA .runtime-label-TzAGI,
+.side-drawer-r9EuA .release-info-label-LPJMB {
+    color: rgba(255, 255, 255, 0.7) !important;
+    font-size: 13px !important;
+}
+
+/* ========================= INTRO/LOGIN PAGE BRANDING ========================= */
+
+/* Hide the old Stremio logo on intro/login pages */
+[class*="intro-"] [class*="logo"],
+[class*="intro-container"] [class*="logo"],
+[class*="form-container"] [class*="logo"],
+#app [class*="intro"] img[class*="logo"],
+#app [class*="intro"] svg[class*="logo"],
+#app [class*="intro-container"] > img:first-child,
+#app [class*="intro-container"] > svg:first-child,
+[class*="intro-logo"],
+.intro-logo,
+#intro-logo,
+/* Also target common auth/login form logos */
+[class*="auth-"] [class*="logo"],
+[class*="login-"] [class*="logo"],
+[class*="signup-"] [class*="logo"],
+[class*="sign-up-"] [class*="logo"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
+/* Style for the custom StremGo logo that will be injected via JS */
+.stremgo-intro-logo {
+    width: 100px !important;
+    height: 100px !important;
+    object-fit: contain !important;
+    margin-bottom: 20px !important;
+    animation: logoFloat 3s ease-in-out infinite;
+}
+
+/* Container for the custom intro logo */
+.stremgo-intro-logo-container {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-bottom: 20px !important;
+}

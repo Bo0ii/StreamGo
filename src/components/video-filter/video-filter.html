@@ -1,0 +1,310 @@
+<!-- Video Filter Button (injected into player control bar) -->
+<div id="video-filter-btn" class="video-filter-btn" title="Video Filters">
+    <svg viewBox="0 0 24 24" width="20" height="20">
+        <circle cx="12" cy="5" r="2" fill="currentColor"/>
+        <circle cx="12" cy="12" r="2" fill="currentColor"/>
+        <circle cx="12" cy="19" r="2" fill="currentColor"/>
+    </svg>
+</div>
+
+<!-- Video Filter Popup Panel -->
+<div id="video-filter-popup" class="video-filter-popup hidden">
+    <div class="video-filter-header">
+        <span class="video-filter-title">Video Filters</span>
+        <button id="video-filter-reset" class="video-filter-reset-btn" title="Reset All">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="video-filter-content">
+        <!-- Sharpness -->
+        <div class="video-filter-control">
+            <div class="video-filter-label">
+                <span>Sharpness</span>
+                <span id="sharpness-value" class="video-filter-value">{{ sharpness }}%</span>
+            </div>
+            <input type="range" id="video-filter-sharpness" class="video-filter-slider"
+                   min="0" max="100" value="{{ sharpness }}" step="1">
+        </div>
+
+        <!-- Brightness -->
+        <div class="video-filter-control">
+            <div class="video-filter-label">
+                <span>Brightness</span>
+                <span id="brightness-value" class="video-filter-value">{{ brightness }}%</span>
+            </div>
+            <input type="range" id="video-filter-brightness" class="video-filter-slider"
+                   min="50" max="150" value="{{ brightness }}" step="1">
+        </div>
+
+        <!-- Contrast -->
+        <div class="video-filter-control">
+            <div class="video-filter-label">
+                <span>Contrast</span>
+                <span id="contrast-value" class="video-filter-value">{{ contrast }}%</span>
+            </div>
+            <input type="range" id="video-filter-contrast" class="video-filter-slider"
+                   min="50" max="150" value="{{ contrast }}" step="1">
+        </div>
+
+        <!-- Saturation -->
+        <div class="video-filter-control">
+            <div class="video-filter-label">
+                <span>Saturation</span>
+                <span id="saturation-value" class="video-filter-value">{{ saturation }}%</span>
+            </div>
+            <input type="range" id="video-filter-saturation" class="video-filter-slider"
+                   min="0" max="200" value="{{ saturation }}" step="1">
+        </div>
+
+        <!-- Color Temperature -->
+        <div class="video-filter-control">
+            <div class="video-filter-label">
+                <span>Temperature</span>
+                <span id="temperature-value" class="video-filter-value">{{ temperature }}</span>
+            </div>
+            <input type="range" id="video-filter-temperature" class="video-filter-slider"
+                   min="-100" max="100" value="{{ temperature }}" step="1">
+            <div class="video-filter-temp-labels">
+                <span>Cool</span>
+                <span>Warm</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style id="video-filter-styles">
+    /* CSS Custom Properties for accent color theming */
+    #video-filter-container {
+        --vf-accent: {{ accentColor }};
+        --vf-accent-light: {{ accentColorLight }};
+        --vf-accent-rgb: {{ accentColorRgb }};
+    }
+
+    /* Filter Button - positioned in control bar */
+    .video-filter-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.1s ease;
+        position: relative;
+        z-index: 10001;
+    }
+
+    .video-filter-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .video-filter-btn:active {
+        transform: scale(0.95);
+    }
+
+    .video-filter-btn.active {
+        background: rgba(var(--vf-accent-rgb), 0.6);
+    }
+
+    /* Filter Popup Panel */
+    .video-filter-popup {
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        width: 280px;
+        max-height: 400px;
+        background: rgba(20, 20, 30, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 10002;
+        overflow: hidden;
+        transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+    }
+
+    .video-filter-popup.hidden {
+        opacity: 0;
+        transform: translateY(10px) scale(0.95);
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .video-filter-popup:not(.hidden) {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        visibility: visible;
+    }
+
+    /* Header */
+    .video-filter-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .video-filter-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: white;
+        letter-spacing: 0.3px;
+    }
+
+    .video-filter-reset-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        border-radius: 6px;
+        color: rgba(255, 255, 255, 0.7);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .video-filter-reset-btn:hover {
+        background: rgba(255, 100, 100, 0.3);
+        color: white;
+    }
+
+    /* Content (scrollable) */
+    .video-filter-content {
+        padding: 12px 16px 16px;
+        max-height: 320px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+
+    .video-filter-content::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .video-filter-content::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .video-filter-content::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+    }
+
+    .video-filter-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Individual Filter Control */
+    .video-filter-control {
+        margin-bottom: 16px;
+    }
+
+    .video-filter-control:last-child {
+        margin-bottom: 0;
+    }
+
+    .video-filter-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .video-filter-label span:first-child {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.85);
+        font-weight: 500;
+    }
+
+    .video-filter-value {
+        font-size: 12px;
+        color: var(--vf-accent);
+        font-weight: 600;
+        min-width: 45px;
+        text-align: right;
+    }
+
+    /* Slider Styling */
+    .video-filter-slider {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 3px;
+        outline: none;
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+
+    .video-filter-slider:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .video-filter-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        background: linear-gradient(135deg, var(--vf-accent-light) 0%, var(--vf-accent) 100%);
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(var(--vf-accent-rgb), 0.4);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .video-filter-slider::-webkit-slider-thumb:hover {
+        transform: scale(1.15);
+        box-shadow: 0 3px 12px rgba(var(--vf-accent-rgb), 0.6);
+    }
+
+    .video-filter-slider::-webkit-slider-thumb:active {
+        transform: scale(1.05);
+    }
+
+    .video-filter-slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        background: linear-gradient(135deg, var(--vf-accent-light) 0%, var(--vf-accent) 100%);
+        border-radius: 50%;
+        cursor: pointer;
+        border: none;
+        box-shadow: 0 2px 8px rgba(var(--vf-accent-rgb), 0.4);
+    }
+
+    /* Temperature labels */
+    .video-filter-temp-labels {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 4px;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.4);
+    }
+
+    .video-filter-temp-labels span:first-child {
+        color: rgba(100, 150, 255, 0.6);
+    }
+
+    .video-filter-temp-labels span:last-child {
+        color: rgba(255, 150, 100, 0.6);
+    }
+
+    /* WebGL Canvas Overlay - positioned over video */
+    #video-filter-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1;
+    }
+</style>
