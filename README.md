@@ -4,7 +4,7 @@
 	</a>
 	<h1 align="center">StreamGo</h1>
 	<h5 align="center">This is a community project and is <b>NOT</b> affiliated with Stremio in any way.</h5>
-	<p align="center"><small><b>Note:</b> This repository is intentionally kept out of sync from the latest version by a few iterations to protect the brand. The source files in this repository represent older versions, while the latest releases (EXE files) contain the most up-to-date features and comprehensive updates. The repository files are updated periodically, but the released binaries will always be ahead with the latest improvements.</small></p>
+	<p align="center"><small><b>Note:</b> This repository is intentionally kept out of sync from the latest version by a few iterations to protect the brand.</small></p>
 	<p align="center">
 		<a href="https://github.com/Bo0ii/StreamGo/releases/latest">
 			<img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/Bo0ii/StreamGo/total?style=for-the-badge&color=%237B5BF5">
