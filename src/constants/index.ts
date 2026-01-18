@@ -166,9 +166,9 @@ export const FILE_EXTENSIONS = {
 export const URLS = {
     STREMIO_WEB: 'https://web.stremio.com/',
     REGISTRY: 'https://raw.githubusercontent.com/REVENGE977/stremio-enhanced-registry/main/registry.json',
-    VERSION_CHECK: 'https://github.com/Bo0ii/StremioGo-NEW/raw/main/version',
-    RELEASES_API: 'https://api.github.com/repos/Bo0ii/StremioGo-NEW/releases/latest',
-    RELEASES_PAGE: 'https://github.com/Bo0ii/StremioGo-NEW/releases/latest',
+    VERSION_CHECK: 'https://github.com/Bo0ii/StreamGo/raw/main/version',
+    RELEASES_API: 'https://api.github.com/repos/Bo0ii/StreamGo/releases/latest',
+    RELEASES_PAGE: 'https://github.com/Bo0ii/StreamGo/releases/latest',
 } as const;
 
 // Discord RPC
