@@ -44,37 +44,73 @@ Runs the Stremio streaming server automatically and loads [web.stremio.com](http
 
 ## ⚡ Exclusive Features
 
+### 🎬 Video Filters & Enhancement
+Advanced real-time video processing with press `F` to toggle:
+- **Sharpness, Contrast, Saturation, Brightness** - Fine-tune your viewing experience
+- **Temperature & Color Correction** - Warm/cool adjustments
+- **Highlights & Shadows** - Precise tonal control
+- **Denoise & Edge Enhancement** - Clean up noisy streams
+- **Fake HDR** - S-curve tone mapping that simulates HDR on any display
+- **Anti-Aliasing** - FXAA-style edge smoothing
+
+### 🎌 Anime4K Upscaling
+Real-time anime upscaling powered by WebGL:
+- **Lite Modes** - For laptops and low-end devices
+- **Fast Modes** - Standard quality upscaling
+- **HQ Modes** - High quality line restore & upscale
+- **Bo0ii Exclusive Mode** - Double-pass Mode A+ for maximum quality (GPU intensive)
+
+### 🎉 Watch Party
+Watch together with friends in real-time:
+- **Create/Join** - Simple PIN code system
+- **Video Sync** - Play, pause, seek synchronized across all viewers
+- **Playback Speed Sync** - Everyone stays in sync
+- **In-Party Chat** - Message your friends while watching
+- **Host Controls** - Transfer host privileges to others
+
+### 🔍 Stream Filtering
+Filter streams to find exactly what you want:
+- **Quality Filter** - 4K, 1080p, 720p, 480p, etc.
+- **Language Filter** - Multi-audio detection
+- **Color Range Filter** - SDR, HDR, HDR10, Dolby Vision
+
+### 🎌 Anime Features
+- **AniSkip Integration** - Auto-detect and skip intros/outros with visual timeline markers
+- **Trending Anime** - Top airing anime from MyAnimeList on homepage
+
+### 🎮 Player Enhancements
+- **Screenshot Capture** - Save moments with flash effect
+- **Picture-in-Picture** - Watch in a floating window
+- **Playback Speed** - `[` / `]` keys to adjust speed
+- **Subtitle Controls** - Font size adjustment, delay compensation (`G` / `H` keys)
+- **Skip Intro/Outro** - `Shift+Arrow` shortcuts with configurable duration
+- **Position Saving** - Resume from where you left off
+- **Ambilight** - Dynamic edge glow effect (optional)
+
 ### 🎯 Performance & Speed
 **Solves the laggy UI problem** found in other Stremio clients:
-
 - **GPU-Accelerated** - Metal/D3D11/OpenGL rendering
 - **144Hz+ Support** - Smooth scrolling on high refresh displays
-- **Smart Scroll Optimization** - Auto-disables heavy effects during scroll for 200fps+ performance
-- **Hardware Video Decoding** - HEVC/H.265 support for efficient playback
-- **Native-Like Smoothness** - Zero lag, zero jank, just buttery smooth
+- **Smart Scroll Optimization** - Auto-disables heavy effects during scroll
+- **Hardware Video Decoding** - HEVC/H.265 support
+- **Streaming Profiles** - Conservative, Balanced, or Aggressive BitTorrent settings
 
 ### 🔧 Core Systems
 - **Auto Updates** - Checks and installs updates automatically
-- **Auto Service Setup** - Detects and installs Stremio Service if missing (Windows/macOS/Linux)
+- **Auto Service Setup** - Detects and installs Stremio Service if missing
 
-### 🎨 Built-in Plugins
+### 🎨 Customization
+- **Theme System** - Apply custom CSS themes
+- **Plugin System** - Extend functionality with JavaScript plugins
+- **Accent Colors** - Customize UI colors
+- **Discord Rich Presence** - Show what you're watching (toggleable)
+
+### 📦 Built-in Plugins
 - **Playback Preview** - Netflix-style trailer preview on hover
 - **Card Hover Info** - IMDb ratings & release dates on hover
-- **Enhancements Tweaks** - Interface tweaks, player enhancements, subtitle customization
-- **Enhanced External Player** - Auto-detect VLC/MPC-HC for external playback
-- **Trending Anime** - Trending anime row on homepage with top airing anime from MyAnimeList
-
-### ⚙️ Tweaks & Customization
-Settings → Tweaks section with customizable options:
-- **Interface Tweaks** - Full height backgrounds, hide hover effects, rounded corners
-- **Player Enhancements** - Ambilight effect, skip intro duration control
-- **Subtitle Customization** - Font size, color, background opacity adjustments
-- **Keyboard Shortcuts** - Customizable shortcuts for playback controls
-- **Streaming Performance** - Optimize BitTorrent settings (conservative/balanced/aggressive profiles)
-
-### ✨ Other Features
-- **Discord Rich Presence** - Show what you're watching (toggleable)
-- **Continuous Bug Fixes** - Regular updates fixing playback, compatibility, and other issues
+- **Enhanced External Player** - Auto-detect VLC/MPC-HC
+- **Horizontal Navigation** - Improved sidebar navigation
+- **And more...**
 
 ---
 
