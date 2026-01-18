@@ -81,3 +81,14 @@ if (fs.existsSync(themesSrcDir)) {
 } else {
     console.log('No themes folder found in the root directory.');
 }
+
+// Copy party app (StreamGo Party / Peario) from root party/ to dist/party/
+const partySrcDir = path.join(__dirname, 'party');
+const partyDestDir = path.join(__dirname, 'dist', 'party');
+
+if (fs.existsSync(partySrcDir)) {
+    copyFiles(partySrcDir, partyDestDir);
+    console.log('Copied StreamGo Party app to dist/party/');
+} else {
+    console.log('No party folder found in the root directory.');
+}

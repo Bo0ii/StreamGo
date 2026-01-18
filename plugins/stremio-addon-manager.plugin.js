@@ -2,7 +2,7 @@
  * @name Stremio Addon Manager
  * @description Reorganize and rename your Stremio addons from the client.
  * @updateUrl https://raw.githubusercontent.com/Zcc09/stremio-addon-manager-plugin/refs/heads/main/stremio-addon-manager.plugin.js
- * @version 1.8.1
+ * @version 2.0.0
  * @author Zcc09
  */
 
@@ -14,6 +14,8 @@
 	const STREMIO_API_BASE = "https://api.strem.io/api/";
 	const THEME_PURPLE = "#7b5bf5";
 	const THEME_GREEN = "#22b365";
+    const DEFAULT_LOGO_URL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+    const CUSTOM_CONFIG_KEY = "stremio-addon-manager-custom-config";
 
 	// --- STATE ---
 	let stremioAuthKey = "";
@@ -33,6 +35,38 @@
 		}
 		return null;
 	}
+
+    function getStorageJson(key) {
+        try {
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : {};
+        } catch (e) {
+            console.error(`${PLUGIN_NAME}: Could not retrieve from storage key "${key}".`, e);
+            return {};
+        }
+    }
+
+    function saveStorageJson(key, data) {
+        try {
+            localStorage.setItem(key, JSON.stringify(data));
+        } catch (e) {
+            console.error(`${PLUGIN_NAME}: Could not save to storage key "${key}".`, e);
+        }
+    }
+
+    async function fetchOriginalManifest(url) {
+        try {
+            const manifestUrl = url.endsWith('/manifest.json') ? url : `${url.replace(/\/$/, "")}/manifest.json`;
+            const resp = await fetch(manifestUrl);
+            if (!resp.ok) throw new Error(`Failed with status ${resp.status}`);
+            const data = await resp.json();
+            // Handle both { manifest: {...} } and {...} structures
+            return data.manifest || data;
+        } catch (e) {
+            console.error(`Failed to fetch original manifest from ${url}`, e);
+            return null;
+        }
+    }
 
 	// --- UI CREATION & INJECTION ---
 
@@ -62,15 +96,17 @@
 		managerButton.onclick = openManagerModal;
 		document.body.appendChild(managerButton);
 
-		// Use hashchange event instead of polling - much more efficient
-		const updateButtonVisibility = () => {
+		// Use hashchange event instead of polling (more efficient)
+		function updateButtonVisibility() {
 			const isOnAddonsPage = window.location.hash.startsWith("#/addons");
 			managerButton.style.display = isOnAddonsPage ? "block" : "none";
-		};
+		}
 
-		window.addEventListener('hashchange', updateButtonVisibility);
 		// Initial check
 		updateButtonVisibility();
+
+		// Listen for navigation changes
+		window.addEventListener('hashchange', updateButtonVisibility);
 	}
 
 	function openManagerModal() {
@@ -85,6 +121,7 @@
 		const existingModal = document.getElementById("addon-manager-modal");
 		if (existingModal) {
 			existingModal.style.display = "block";
+            loadUserAddons(true); // Always refresh on open
 			return;
 		}
 
@@ -98,27 +135,32 @@
                 </div>
                 <div class="modal-body">
                     <div id="controls-section">
-                        <button id="load-addons-button">Load/Refresh Addons</button>
+                        <button id="reset-all-button" class="am-button delete-button">Reset All</button>
                     </div>
                     <div id="addons-list-container"></div>
                 </div>
                 <div class="modal-footer">
-                    <button id="sync-addons-button" style="display:none;">Sync to Stremio</button>
+                    <button id="sync-addons-button" style="display:none;" class="am-button">Sync to Stremio</button>
                 </div>
             </div>
         `;
 		document.body.appendChild(modal);
 		addModalStyles();
 		setupModalEventListeners();
-		loadUserAddons();
+		loadUserAddons(true);
 	}
 
 	function setupModalEventListeners() {
 		const modal = document.getElementById("addon-manager-modal");
 		modal.querySelector(".close-button").onclick = () =>
 			(modal.style.display = "none");
-		modal.querySelector("#load-addons-button").onclick = loadUserAddons;
 		modal.querySelector("#sync-addons-button").onclick = syncUserAddons;
+        modal.querySelector("#reset-all-button").onclick = () => {
+            if (window.confirm("Are you sure you want to reset all addon customizations? This will restore their default settings.")) {
+                saveStorageJson(CUSTOM_CONFIG_KEY, {});
+                loadUserAddons(true);
+            }
+        };
 	}
 
 	function renderAddonsList() {
@@ -138,14 +180,12 @@
 
 			li.innerHTML = `
                 <div class="addon-details">
-                    <img src="${
-											addon.manifest.logo ||
-											"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIxIDE2VjhhMiAyIDAgMCAwLTEtMS43M2wtNy00YTIgMiAwIDAgMC0yIDBsLTcgNEEyIDIgMCAwIDAgMyA4djhhMiAyIDAgMCAwIDEgMS43M2w3IDRhMiAyIDAgMCAwIDIgMGw3LTRBMiAyIDAgMCAwIDIxIDE2eiI+PC9wYXRoPjxwb2x5bGluZSBwb2ludHM9IjMuMjcgNi45NiAxMiAxMi4wMSAyMC43MyA2Ljk2Ij48L3BvbHlsaW5lPjxsaW5lIHgxPSIxMiIgeTE9IjIyLjA4IiB4Mj0iMTIiIHkyPSIxMiI+PC9saW5lPjwvc3ZnPg=="
-										}" class="addon-logo">
+                    <img src="${addon.manifest.logo || DEFAULT_LOGO_URL}" class="addon-logo" onerror="this.src='${DEFAULT_LOGO_URL}'">
                     <span>${addon.manifest.name}</span>
                 </div>
                 <div class="addon-actions">
                     <button class="edit-button am-button">Edit</button>
+                    <button class="reset-button am-button">Reset</button>
                     <button class="delete-button am-button" ${
 											addon.flags && addon.flags.protected ? "disabled" : ""
 										}>Delete</button>
@@ -158,7 +198,7 @@
 		container.scrollTop = scrollPosition;
 		document.getElementById("sync-addons-button").style.display = "block";
 		addDragAndDropEventListeners();
-		addEditDeleteEventListeners();
+		addEditResetEventListeners();
 	}
 
 	// --- EVENT LISTENERS ---
@@ -175,14 +215,32 @@
 		});
 	}
 
-	function addEditDeleteEventListeners() {
+	function addEditResetEventListeners() {
 		document.querySelectorAll(".edit-button").forEach((button, index) => {
 			button.onclick = () => openEditModal(index);
 		});
-		document.querySelectorAll(".delete-button").forEach((button, index) => {
+        document.querySelectorAll(".reset-button").forEach((button, index) => {
+            button.onclick = () => {
+                const addon = addons[index];
+                const addonName = addon.manifest.name;
+                if (window.confirm(`Are you sure you want to reset customizations for "${addonName}"? This will restore its default settings.`)) {
+                    const customConfig = getStorageJson(CUSTOM_CONFIG_KEY);
+                    delete customConfig[addon.transportUrl];
+                    saveStorageJson(CUSTOM_CONFIG_KEY, customConfig);
+                    loadUserAddons(true);
+                }
+            }
+        });
+        document.querySelectorAll(".delete-button").forEach((button, index) => {
 			button.onclick = () => {
-				addons.splice(index, 1);
-				renderAddonsList();
+                const addonName = addons[index].manifest.name;
+				if (window.confirm(`Are you sure you want to delete the addon "${addonName}"? This will also remove your customizations.`)) {
+                    const customConfig = getStorageJson(CUSTOM_CONFIG_KEY);
+                    delete customConfig[addons[index].transportUrl];
+                    saveStorageJson(CUSTOM_CONFIG_KEY, customConfig);
+                    addons.splice(index, 1);
+				    renderAddonsList();
+                }
 			};
 		});
 	}
@@ -234,14 +292,34 @@
 
 		let catalogsHtml = "";
 		if (manifest.catalogs && manifest.catalogs.length > 0) {
-			catalogsHtml = manifest.catalogs
+            const isSearchCatalog = (catalog) => (catalog.id && catalog.id.includes('search')) || (catalog.extra && catalog.extra.some(e => e.name === 'search'));
+            
+            const sortedCatalogs = [...manifest.catalogs]
+                .map((catalog, originalIndex) => ({ ...catalog, originalIndex }))
+                .sort((a, b) => {
+                    const aIsSearch = isSearchCatalog(a);
+                    const bIsSearch = isSearchCatalog(b);
+                    if (aIsSearch === bIsSearch) return 0;
+                    return aIsSearch ? -1 : 1;
+                });
+
+			catalogsHtml = sortedCatalogs
 				.map(
-					(catalog, catIndex) => `
-                <div class="form-group">
-                    <label>Catalog: ${catalog.name}</label>
-                    <input type="text" data-cat-index="${catIndex}" value="${catalog.name}">
-                </div>
-            `
+					(catalog) => `
+                        <div class="form-group catalog-edit">
+                            <label for="catalog-name-${catalog.originalIndex}">
+                                Catalog Name 
+                                <span class="catalog-type-badge">${catalog.type || 'other'}</span>
+                                ${isSearchCatalog(catalog) ? '<span class="catalog-type-badge search-badge">Search</span>' : ''}
+                            </label>
+                            <input type="text" id="catalog-name-${catalog.originalIndex}" data-cat-index="${catalog.originalIndex}" value="${catalog.name}">
+                            <label for="catalog-visibility-${catalog.originalIndex}">Status</label>
+                            <select id="catalog-visibility-${catalog.originalIndex}" data-cat-index="${catalog.originalIndex}">
+                                <option value="visible" ${!catalog.hidden ? "selected" : ""}>Visible</option>
+                                <option value="hidden" ${catalog.hidden ? "selected" : ""}>Hidden</option>
+                            </select>
+                        </div>
+                    `
 				)
 				.join("");
 		}
@@ -254,13 +332,13 @@
                 </div>
                 <div class="modal-body">
                     <div class="form-group">
-                        <label>Name</label>
+                        <label for="edit-name">Name</label>
                         <input type="text" id="edit-name" value="${
 													manifest.name || ""
 												}">
                     </div>
                      <div class="form-group">
-                        <label>Description</label>
+                        <label for="edit-description">Description</label>
                         <textarea id="edit-description" rows="3">${
 													manifest.description || ""
 												}</textarea>
@@ -269,13 +347,13 @@
                         <summary>Advanced</summary>
                         <div class="advanced-content">
                             <div class="form-group">
-                                <label>Logo URL</label>
+                                <label for="edit-logo">Logo URL</label>
                                 <input type="text" id="edit-logo" value="${
 																	manifest.logo || ""
 																}">
                             </div>
                             <div class="form-group">
-                                <label>Background URL</label>
+                                <label for="edit-background">Background URL</label>
                                 <input type="text" id="edit-background" value="${
 																	manifest.background || ""
 																}">
@@ -293,7 +371,8 @@
 
 		editModal.querySelector(".close-button").onclick = () => editModal.remove();
 		editModal.querySelector("#save-manifest-button").onclick = () => {
-			const newManifest = addons[index].manifest;
+            const currentAddon = addons[index];
+			const newManifest = currentAddon.manifest;
 			newManifest.name = document.getElementById("edit-name").value;
 			newManifest.description =
 				document.getElementById("edit-description").value;
@@ -302,12 +381,20 @@
 
 			if (newManifest.catalogs && newManifest.catalogs.length > 0) {
 				document
-					.querySelectorAll("#edit-addon-modal [data-cat-index]")
-					.forEach((input) => {
-						const catIndex = parseInt(input.dataset.catIndex);
-						newManifest.catalogs[catIndex].name = input.value;
+					.querySelectorAll("#edit-addon-modal .catalog-edit")
+					.forEach((catalogEl) => {
+						const nameInput = catalogEl.querySelector('input[type="text"]');
+						const visibilitySelect = catalogEl.querySelector("select");
+						const catIndex = parseInt(nameInput.dataset.catIndex);
+                        const catalog = newManifest.catalogs[catIndex];
+						catalog.name = nameInput.value;
+						catalog.hidden = visibilitySelect.value === "hidden";
 					});
 			}
+
+            const customConfig = getStorageJson(CUSTOM_CONFIG_KEY);
+            customConfig[currentAddon.transportUrl] = JSON.parse(JSON.stringify(newManifest));
+            saveStorageJson(CUSTOM_CONFIG_KEY, customConfig);
 
 			renderAddonsList();
 			editModal.remove();
@@ -316,41 +403,68 @@
 
 	// --- API CALLS ---
 
-	function loadUserAddons() {
+	async function loadUserAddons(forceUpdate = false) {
 		if (!stremioAuthKey) {
 			alert("Authentication key not found. Please ensure you are logged in.");
 			return;
 		}
 
-		const button = document.getElementById("load-addons-button");
-		button.textContent = "Loading...";
-		button.disabled = true;
+        try {
+            const resp = await fetch(`${STREMIO_API_BASE}addonCollectionGet`, {
+                method: "POST",
+                body: JSON.stringify({ type: "AddonCollectionGet", authKey: stremioAuthKey, update: forceUpdate }),
+            });
+            const data = await resp.json();
 
-		fetch(`${STREMIO_API_BASE}addonCollectionGet`, {
-			method: "POST",
-			body: JSON.stringify({
-				type: "AddonCollectionGet",
-				authKey: stremioAuthKey,
-				update: true,
-			}),
-		})
-			.then((resp) => resp.json())
-			.then((data) => {
-				if (data.result && data.result.addons) {
-					addons = data.result.addons;
-					renderAddonsList();
-				} else {
-					alert("Failed to fetch addons. Your session might be invalid.");
-				}
-			})
-			.catch((error) => {
-				console.error("Error fetching addons:", error);
-				alert("An error occurred while fetching addons.");
-			})
-			.finally(() => {
-				button.textContent = "Load/Refresh Addons";
-				button.disabled = false;
-			});
+            if (!data.result || !data.result.addons) {
+                alert("Failed to fetch addons. Your session might be invalid.");
+                return;
+            }
+
+            const customConfig = getStorageJson(CUSTOM_CONFIG_KEY);
+            const remoteAddons = data.result.addons;
+            const processedAddons = [];
+
+            for (const addon of remoteAddons) {
+                const originalManifest = await fetchOriginalManifest(addon.transportUrl);
+                const baseManifest = originalManifest || addon.manifest;
+
+                if (!baseManifest) {
+                    console.error(`Could not resolve a manifest for addon: ${addon.transportUrl}`);
+                    continue;
+                }
+
+                const workingManifest = JSON.parse(JSON.stringify(baseManifest));
+                const savedConfig = customConfig[addon.transportUrl];
+                
+                if (savedConfig) {
+                    workingManifest.name = savedConfig.name;
+                    workingManifest.description = savedConfig.description;
+                    workingManifest.logo = savedConfig.logo;
+                    workingManifest.background = savedConfig.background;
+
+                    if (workingManifest.catalogs && savedConfig.catalogs) {
+                        workingManifest.catalogs.forEach(baseCat => {
+                            const savedCat = savedConfig.catalogs.find(c => c.id === baseCat.id && c.type === baseCat.type);
+                            if (savedCat) {
+                                baseCat.name = savedCat.name;
+                                baseCat.hidden = savedCat.hidden;
+                            }
+                        });
+                    }
+                }
+                
+                addon.manifest = workingManifest;
+                processedAddons.push(addon);
+            }
+            
+            addons = processedAddons;
+            renderAddonsList();
+
+        } catch (error) {
+            console.error("Error fetching addons:", error);
+            alert(`An error occurred while fetching addons: ${error.message}`);
+        }
 	}
 
 	function syncUserAddons() {
@@ -363,12 +477,20 @@
 		button.textContent = "Syncing...";
 		button.disabled = true;
 
+        const addonsToSync = JSON.parse(JSON.stringify(addons));
+
+        addonsToSync.forEach(addon => {
+            if (addon.manifest && addon.manifest.catalogs) {
+                addon.manifest.catalogs = addon.manifest.catalogs.filter(catalog => !catalog.hidden);
+            }
+        });
+
 		fetch(`${STREMIO_API_BASE}addonCollectionSet`, {
 			method: "POST",
 			body: JSON.stringify({
 				type: "AddonCollectionSet",
 				authKey: stremioAuthKey,
-				addons: addons,
+				addons: addonsToSync,
 			}),
 		})
 			.then((resp) => resp.json())
@@ -431,20 +553,31 @@
             .close-button {
                 color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer;
             }
-            .modal-content input, .modal-content textarea {
-                width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box;
+            .modal-content input[type="text"], .modal-content textarea, .modal-content select {
+                width: 100%; padding: 10px; box-sizing: border-box;
                 background-color: #333; color: white; border: 1px solid #555; border-radius: 4px;
             }
-            #load-addons-button, #sync-addons-button, .am-button {
+             .modal-content label {
+                margin-top: 10px;
+                display: block;
+            }
+             #controls-section {
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+                margin-bottom: 15px;
+                gap: 10px;
+            }
+            .am-button {
                 background-color: ${THEME_PURPLE}; color: white; padding: 10px 15px;
                 border: none; cursor: pointer; border-radius: 5px; margin: 0;
                 font-weight: bold; transition: background-color 0.2s;
             }
-            #load-addons-button:hover, #sync-addons-button:hover, .am-button:hover {
+            .am-button:hover {
                 background-color: #6145b8;
             }
-            .delete-button.am-button { background-color: #c62828; }
-            .delete-button.am-button:hover { background-color: #b71c1c; }
+            .delete-button { background-color: #c62828 !important; }
+            .delete-button:hover { background-color: #b71c1c !important; }
             .addon-item {
                 display: flex; justify-content: space-between; align-items: center; padding: 10px;
                 margin: 5px 0; background-color: #2c2c2c; border: 2px solid transparent;
@@ -455,11 +588,36 @@
             .addon-item.drag-over {
                 border-color: ${THEME_PURPLE}; background-color: #3d3d3d;
             }
+            .addon-actions {
+                display: flex;
+                gap: 5px;
+            }
             .addon-logo {
                 width: 40px; height: 40px; margin-right: 15px; object-fit: contain;
+                background-color: transparent; border-radius: 4px;
             }
             .addon-details { display: flex; align-items: center; }
             .form-group { margin-bottom: 15px; }
+            .catalog-edit {
+                border: 1px solid #444;
+                padding: 10px;
+                border-radius: 4px;
+                margin-bottom: 10px;
+            }
+            .catalog-type-badge {
+                display: inline-block;
+                margin-left: 8px;
+                padding: 2px 8px;
+                background-color: #555;
+                border-radius: 10px;
+                font-size: 11px;
+                font-weight: bold;
+                text-transform: capitalize;
+                vertical-align: middle;
+            }
+            .search-badge {
+                background-color: #ac6d05;
+            }
             .advanced-details summary {
                 cursor: pointer; font-weight: bold; color: ${THEME_PURPLE};
                 margin: 15px 0;

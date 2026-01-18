@@ -1,5 +1,12 @@
 <nav class="title-bar">
     <div class="title-bar-buttons">
+        <div id="titlebar-party-btn" title="Watch Party" class="button party-btn">
+            <svg viewBox="0 0 24 24" style="width: 20px; height: 20px;">
+                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" style="fill:white;"></path>
+            </svg>
+            <span id="titlebar-party-indicator" class="party-indicator"></span>
+        </div>
+        <div class="title-bar-separator"></div>
         <div id="minimizeApp-btn" title="Minimize" class="button">
             <svg viewBox="0 0 24 24">
                 <path d="M20,14H4V10H20" style="fill:white;"></path>
@@ -53,6 +60,48 @@
         .title-bar-buttons svg {
             width: 20px;
             height: 20px;
+        }
+
+        .title-bar-separator {
+            width: 1px;
+            height: 16px;
+            background: rgba(255, 255, 255, 0.2);
+            margin: 0 0.5rem;
+        }
+
+        .party-btn {
+            position: relative;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .party-btn:hover {
+            background: rgba(123, 91, 245, 0.3);
+        }
+
+        .party-btn.party-active {
+            background: rgba(123, 91, 245, 0.4);
+        }
+
+        .party-btn.party-active svg path {
+            fill: #10b981 !important;
+        }
+
+        .party-indicator {
+            display: none;
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 0, 0, 0.3);
+        }
+
+        .party-btn.party-active .party-indicator {
+            display: block;
         }
     </style>
 </nav>

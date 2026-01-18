@@ -256,9 +256,40 @@ export function applyPerformanceMode(enabled: boolean): void {
 }
 
 // Initialize performance mode on page load
+// Auto-enables for desktop users (no battery = desktop = high refresh rate likely)
 export function initPerformanceMode(): void {
-	const performanceMode = localStorage.getItem(STORAGE_KEYS.PERFORMANCE_MODE) === 'true';
-	applyPerformanceMode(performanceMode);
+	// Check if user has explicitly set a preference
+	const savedPref = localStorage.getItem(STORAGE_KEYS.PERFORMANCE_MODE);
+
+	// If no preference set, auto-detect: enable for desktop users (high refresh rate likely)
+	if (savedPref === null) {
+		// Use navigator battery API to detect desktop vs laptop
+		// Desktop PCs don't have battery, so getBattery will either fail or return no battery
+		if ('getBattery' in navigator) {
+			(navigator as Navigator & { getBattery: () => Promise<{ charging: boolean; level: number }> })
+				.getBattery()
+				.then((battery) => {
+					// If always charging and level is 1 (100%), likely a desktop PC
+					const isDesktop = battery.charging && battery.level === 1;
+					if (isDesktop) {
+						logger.info('Desktop PC detected - auto-enabling performance mode for 144Hz+ smoothness');
+						applyPerformanceMode(true);
+					}
+				})
+				.catch(() => {
+					// No battery API = likely desktop, enable performance mode
+					logger.info('No battery API - assuming desktop PC, enabling performance mode');
+					applyPerformanceMode(true);
+				});
+		} else {
+			// No battery API support = likely desktop
+			logger.info('Battery API not supported - assuming desktop PC, enabling performance mode');
+			applyPerformanceMode(true);
+		}
+	} else {
+		// User has a saved preference, respect it
+		applyPerformanceMode(savedPref === 'true');
+	}
 }
 
 export function applyTweaks(): void {

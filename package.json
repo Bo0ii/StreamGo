@@ -1,6 +1,6 @@
 {
 	"name": "streamgo",
-	"version": "1.1.0-beta",
+	"version": "2.0.0",
 	"description": "Electron-based Stremio client with plugins and themes support.",
 	"main": "./dist/main.js",
 	"scripts": {
@@ -33,7 +33,9 @@
 		"typescript": "^5.7.2"
 	},
 	"dependencies": {
+		"@supabase/supabase-js": "^2.90.1",
 		"@xhayper/discord-rpc": "^1.2.1",
+		"anime4k.js": "^0.0.7",
 		"discord-api-types": "^0.37.119",
 		"electron-prompt": "^1.7.0",
 		"electron-updater": "^5.3.0",
@@ -62,7 +64,15 @@
 		"appId": "com.bo0ii.streamgo",
 		"productName": "StreamGo",
 		"asar": true,
-		"icon": "images/icons/main.png",
+		"icon": "images/icon.png",
+		"protocols": [
+			{
+				"name": "stremio",
+				"schemes": [
+					"stremio"
+				]
+			}
+		],
 		"directories": {
 			"output": "release-builds"
 		},
@@ -75,17 +85,30 @@
 			{
 				"from": "plugins",
 				"to": "plugins",
-				"filter": ["**/*"]
+				"filter": [
+					"**/*"
+				]
 			},
 			{
 				"from": "themes",
 				"to": "themes",
-				"filter": ["**/*"]
+				"filter": [
+					"**/*"
+				]
 			},
 			{
 				"from": "images",
 				"to": "images",
-				"filter": ["**/*"]
+				"filter": [
+					"**/*"
+				]
+			},
+			{
+				"from": "sql",
+				"to": "sql",
+				"filter": [
+					"**/*"
+				]
 			}
 		],
 		"publish": {
@@ -105,47 +128,58 @@
 						"x64",
 						"arm64"
 					]
-				},
-				{
-					"target": "portable",
-					"arch": [
-						"x64"
-					]
 				}
 			],
+			"icon": "images/icon.ico",
 			"extraResources": [
 				{
 					"from": "stremio-service/stremio-service-windows",
 					"to": "stremio-service",
-					"filter": ["**/*"]
+					"filter": [
+						"**/*"
+					]
 				}
-			]
+			],
+			"requestedExecutionLevel": "asInvoker",
+			"signAndEditExecutable": true,
+			"verifyUpdateCodeSignature": false
 		},
 		"nsis": {
 			"oneClick": true,
 			"perMachine": false,
 			"allowElevation": true,
-			"deleteAppDataOnUninstall": false
+			"allowToChangeInstallationDirectory": false,
+			"deleteAppDataOnUninstall": false,
+			"runAfterFinish": true,
+			"artifactName": "${productName}-${version}-Windows.${ext}",
+			"unicode": true,
+			"differentialPackage": false,
+			"include": "build/installer.nsh"
 		},
+		"compression": "normal",
 		"mac": {
 			"target": "dmg",
-			"icon": "images/icons/main.png",
+			"icon": "images/icon.png",
 			"extraResources": [
 				{
 					"from": "stremio-service/stremio-service-macos",
 					"to": "stremio-service",
-					"filter": ["**/*"]
+					"filter": [
+						"**/*"
+					]
 				}
 			]
 		},
 		"linux": {
 			"target": "AppImage",
-			"icon": "images/icons/main.png",
+			"icon": "images/icon.png",
 			"extraResources": [
 				{
 					"from": "stremio-service/stremio-service-linux",
 					"to": "stremio-service",
-					"filter": ["**/*"]
+					"filter": [
+						"**/*"
+					]
 				}
 			]
 		}

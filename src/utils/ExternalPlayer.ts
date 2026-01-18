@@ -1,7 +1,8 @@
 import { getLogger } from "./logger";
 import { existsSync } from "fs";
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import * as process from 'process';
+import * as path from 'path';
 
 const logger = getLogger("ExternalPlayer");
 
@@ -22,13 +23,25 @@ const PLAYER_PATHS: Record<string, Record<string, string[]>> = {
             "C:\\Program Files\\MPC-HC\\mpc-hc64.exe",
             "C:\\Program Files (x86)\\MPC-HC\\mpc-hc.exe",
             "C:\\Program Files\\MPC-HC64\\mpc-hc64.exe"
+        ],
+        mpv: [
+            "C:\\Program Files\\mpv\\mpv.exe",
+            "C:\\Program Files (x86)\\mpv\\mpv.exe",
+            path.join(process.env.LOCALAPPDATA || '', 'mpv', 'mpv.exe'),
+            path.join(process.env.ProgramData || '', 'mpv', 'mpv.exe')
         ]
     },
     darwin: {
         vlc: [
             "/Applications/VLC.app/Contents/MacOS/VLC"
         ],
-        mpchc: [] // MPC-HC not available on macOS
+        mpchc: [], // MPC-HC not available on macOS
+        mpv: [
+            "/Applications/mpv.app/Contents/MacOS/mpv",
+            "/usr/local/bin/mpv",
+            "/opt/homebrew/bin/mpv",
+            path.join(process.env.HOME || '', '.local', 'bin', 'mpv')
+        ]
     },
     linux: {
         vlc: [
@@ -36,7 +49,14 @@ const PLAYER_PATHS: Record<string, Record<string, string[]>> = {
             "/snap/bin/vlc",
             "/var/lib/flatpak/exports/bin/org.videolan.VLC"
         ],
-        mpchc: [] // MPC-HC not available on Linux
+        mpchc: [], // MPC-HC not available on Linux
+        mpv: [
+            "/usr/bin/mpv",
+            "/usr/local/bin/mpv",
+            "/snap/bin/mpv",
+            "/var/lib/flatpak/exports/bin/io.mpv.Mpv",
+            path.join(process.env.HOME || '', '.local', 'bin', 'mpv')
+        ]
     }
 };
 
@@ -53,6 +73,7 @@ class ExternalPlayer {
             return null;
         }
 
+        // Check predefined paths first
         for (const path of paths) {
             if (existsSync(path)) {
                 logger.info(`Found ${player} at: ${path}`);
@@ -60,7 +81,23 @@ class ExternalPlayer {
             }
         }
 
-        logger.warn(`Player "${player}" not found in common installation paths`);
+        // Fallback: Check if player is available in system PATH
+        try {
+            const whichCommand = platform === 'win32' ? 'where' : 'which';
+            const result = execSync(`${whichCommand} ${player}`, {
+                encoding: 'utf8',
+                stdio: ['pipe', 'pipe', 'ignore']
+            });
+            const pathFromWhich = result.trim().split('\n')[0];
+            if (pathFromWhich && existsSync(pathFromWhich)) {
+                logger.info(`Found ${player} in PATH at: ${pathFromWhich}`);
+                return pathFromWhich;
+            }
+        } catch (e) {
+            // Player not found in PATH, continue to warning below
+        }
+
+        logger.warn(`Player "${player}" not found in common installation paths or system PATH`);
         return null;
     }
 
@@ -123,11 +160,24 @@ class ExternalPlayer {
                 if (title) {
                     vlcArgs.push(`--meta-title=${title}`);
                 }
-                vlcArgs.push('--fullscreen');
+                // Removed --fullscreen flag to allow windowed mode
                 return vlcArgs;
 
             case 'mpchc':
-                return [url, '/fullscreen', '/play'];
+                // Removed /fullscreen flag to allow windowed mode
+                return [url, '/play'];
+
+            case 'mpv':
+                const mpvArgs = [
+                    url,
+                    '--force-window=immediate',  // Open window immediately
+                    '--keep-open=yes',           // Keep window open when playback ends
+                    '--no-terminal'              // Don't create console window on Windows
+                ];
+                if (title) {
+                    mpvArgs.push(`--force-media-title=${title}`);
+                }
+                return mpvArgs;
 
             default:
                 return [url];

@@ -9,10 +9,10 @@ let cachedNavbars = new Map();
 
 function moveNavbar(verticalNavbar, targetParent) {
     if (!verticalNavbar || !targetParent) return;
+
+    // Move instantly - no visibility toggle to avoid flicker
     if (verticalNavbar.parentElement !== targetParent) {
-        verticalNavbar.style.visibility = "hidden";
         targetParent.appendChild(verticalNavbar);
-        verticalNavbar.style.visibility = "visible";
     }
 }
 
@@ -42,13 +42,21 @@ function fixAllNavbars() {
     });
 }
 
-// MutationObserver handles all DOM changes - no polling needed
-let timeoutId;
+// MutationObserver handles all DOM changes - INSTANT response
+let rafId;
 const observer = new MutationObserver(() => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(fixAllNavbars, 100);
+    // Cancel any pending animation frame
+    if (rafId) cancelAnimationFrame(rafId);
+    // Use requestAnimationFrame for immediate next-frame execution
+    rafId = requestAnimationFrame(() => {
+        fixAllNavbars();
+        // Double-tap for safety
+        requestAnimationFrame(fixAllNavbars);
+    });
 });
 observer.observe(document.body, { childList: true, subtree: true, attributes: true });
 
-// Initial call
+// Initial call - immediate and on next frames
 fixAllNavbars();
+requestAnimationFrame(fixAllNavbars);
+requestAnimationFrame(() => requestAnimationFrame(fixAllNavbars));

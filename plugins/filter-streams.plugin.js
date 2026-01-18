@@ -511,6 +511,9 @@
     }
 
     
+    // Reduced from 200ms to 500ms for better performance
+    let intervalId = null;
+
     function checkElements() {
         const existsStreamsList = document.querySelector('.streams-list-Y1lCM');
         const missingDropdown = !document.querySelector('.dropdown.observer-ignore');
@@ -518,11 +521,25 @@
 
         if (existsStreamsList && missingDropdown && streamsInited) {
             createFilters();
+            // Clear interval after filters are created (prevents memory leak)
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
         }
     }
 
-    // Reduced from 200ms to 500ms for better performance
-    const intervalId = setInterval(checkElements, 500);
+    intervalId = setInterval(checkElements, 500);
+
+    // Re-enable interval when navigating to streams page
+    window.addEventListener('hashchange', () => {
+        if (location.hash.includes('/detail/') && !intervalId) {
+            intervalId = setInterval(checkElements, 500);
+        } else if (!location.hash.includes('/detail/') && intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+        }
+    });
 
     window.onload = function(){
         const style = document.createElement("style");

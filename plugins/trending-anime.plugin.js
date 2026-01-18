@@ -33,14 +33,14 @@
 
     // Fallback anime data
     const fallbackAnime = [
-        { mal_id: 21, title: 'One Piece', poster: 'https://cdn.myanimelist.net/images/anime/1244/138851l.jpg', score: 8.71, episodes: null, type: 'TV' },
-        { mal_id: 51009, title: 'Jujutsu Kaisen Season 2', poster: 'https://cdn.myanimelist.net/images/anime/1792/138022l.jpg', score: 8.55, episodes: 23, type: 'TV' },
-        { mal_id: 52991, title: 'Sousou no Frieren', poster: 'https://cdn.myanimelist.net/images/anime/1015/138006l.jpg', score: 9.13, episodes: 28, type: 'TV' },
-        { mal_id: 55644, title: 'Oshi no Ko Season 2', poster: 'https://cdn.myanimelist.net/images/anime/1077/139569l.jpg', score: 8.21, episodes: 13, type: 'TV' },
-        { mal_id: 54898, title: 'Dandadan', poster: 'https://cdn.myanimelist.net/images/anime/1551/142419l.jpg', score: 8.67, episodes: 12, type: 'TV' },
-        { mal_id: 52034, title: 'Blue Lock', poster: 'https://cdn.myanimelist.net/images/anime/1258/126929l.jpg', score: 8.12, episodes: 24, type: 'TV' },
-        { mal_id: 53887, title: 'Spy x Family Season 2', poster: 'https://cdn.myanimelist.net/images/anime/1506/138982l.jpg', score: 8.45, episodes: 12, type: 'TV' },
-        { mal_id: 51019, title: 'Kimetsu no Yaiba: Hashira Training', poster: 'https://cdn.myanimelist.net/images/anime/1565/142733l.jpg', score: 7.86, episodes: 8, type: 'TV' }
+        { mal_id: 21, title: 'One Piece', poster: 'https://cdn.myanimelist.net/images/anime/1244/138851l.jpg', score: 8.71, episodes: null, type: 'TV', year: 1999 },
+        { mal_id: 51009, title: 'Jujutsu Kaisen Season 2', poster: 'https://cdn.myanimelist.net/images/anime/1792/138022l.jpg', score: 8.55, episodes: 23, type: 'TV', year: 2023 },
+        { mal_id: 52991, title: 'Sousou no Frieren', poster: 'https://cdn.myanimelist.net/images/anime/1015/138006l.jpg', score: 9.13, episodes: 28, type: 'TV', year: 2023 },
+        { mal_id: 55644, title: 'Oshi no Ko Season 2', poster: 'https://cdn.myanimelist.net/images/anime/1077/139569l.jpg', score: 8.21, episodes: 13, type: 'TV', year: 2024 },
+        { mal_id: 54898, title: 'Dandadan', poster: 'https://cdn.myanimelist.net/images/anime/1551/142419l.jpg', score: 8.67, episodes: 12, type: 'TV', year: 2024 },
+        { mal_id: 52034, title: 'Blue Lock', poster: 'https://cdn.myanimelist.net/images/anime/1258/126929l.jpg', score: 8.12, episodes: 24, type: 'TV', year: 2022 },
+        { mal_id: 53887, title: 'Spy x Family Season 2', poster: 'https://cdn.myanimelist.net/images/anime/1506/138982l.jpg', score: 8.45, episodes: 12, type: 'TV', year: 2023 },
+        { mal_id: 51019, title: 'Kimetsu no Yaiba: Hashira Training', poster: 'https://cdn.myanimelist.net/images/anime/1565/142733l.jpg', score: 7.86, episodes: 8, type: 'TV', year: 2024 }
     ];
 
     // CSS Styles - Matching liquid-glass theme EXACTLY
@@ -123,8 +123,8 @@
 
         /* ==================== CARD - Match meta-item-container with liquid-glass flex sizing ==================== */
         .trending-anime-card {
-            /* Match the exact flex formula from liquid-glass: flex: calc(1 / var(--poster-shape-ratio)) 0 250px */
-            flex: calc(1 / 0.675) 0 250px;
+            /* Slightly smaller than standard cards (250px) for a more compact look */
+            flex: calc(1 / 0.675) 0 220px;
             cursor: pointer;
             position: relative;
             contain: layout paint style;
@@ -133,6 +133,21 @@
             backface-visibility: hidden;
             -webkit-backface-visibility: hidden;
             isolation: isolate;
+            /* Default: padding on both sides for middle cards */
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+
+        /* First card: only right padding */
+        .trending-anime-card:first-child {
+            padding-left: 0;
+            padding-right: 8px;
+        }
+
+        /* Last card: only left padding */
+        .trending-anime-card:last-child {
+            padding-left: 8px;
+            padding-right: 0;
         }
 
         .trending-anime-card:hover {
@@ -314,6 +329,48 @@
             text-overflow: ellipsis;
             line-height: 1.1;
             margin-bottom: 0;
+        }
+
+        /* ==================== METADATA ROW ==================== */
+        .trending-anime-card .trending-anime-meta {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.3rem !important;
+            margin: 0.25rem 0 0 0 !important;
+            font-size: 0.75rem !important;
+            color: rgba(255, 255, 255, 0.5) !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            line-height: 1.2 !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            height: auto !important;
+            max-height: none !important;
+        }
+
+        .trending-anime-card .trending-anime-rating {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 0.2rem !important;
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+
+        .trending-anime-card .trending-anime-star-icon {
+            width: 0.85rem !important;
+            height: 0.85rem !important;
+            fill: #f5c518 !important;
+            flex-shrink: 0 !important;
+        }
+
+        .trending-anime-card .trending-anime-year,
+        .trending-anime-card .trending-anime-type {
+            color: rgba(255, 255, 255, 0.5) !important;
+        }
+
+        .trending-anime-card .trending-anime-meta-separator {
+            color: rgba(255, 255, 255, 0.3) !important;
+            margin: 0 0.1rem !important;
         }
 
         /* ==================== LOADING SKELETON ==================== */
@@ -525,6 +582,22 @@
     function createAnimeCard(anime) {
         const escapedTitle = anime.title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
+        // Build metadata items array
+        const metaItems = [];
+        if (anime.score) {
+            metaItems.push(`<span class="trending-anime-rating"><svg viewBox="0 0 24 24" class="trending-anime-star-icon"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>${anime.score.toFixed(1)}</span>`);
+        }
+        if (anime.year) {
+            metaItems.push(`<span class="trending-anime-year">${anime.year}</span>`);
+        }
+        if (anime.type) {
+            metaItems.push(`<span class="trending-anime-type">${anime.type}</span>`);
+        }
+
+        const metaRow = metaItems.length > 0
+            ? `<p class="trending-anime-meta">${metaItems.join('<span class="trending-anime-meta-separator">•</span>')}</p>`
+            : '';
+
         return `
             <div class="trending-anime-card" data-mal-id="${anime.mal_id}" onclick="window.navigateToAnime(${anime.mal_id}, '${escapedTitle}')">
                 <div class="trending-anime-poster-container">
@@ -544,6 +617,7 @@
                 </div>
                 <div class="trending-anime-title-bar">
                     <p class="trending-anime-name" title="${escapedTitle}">${anime.title}</p>
+                    ${metaRow}
                 </div>
             </div>
         `;

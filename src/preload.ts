@@ -10,9 +10,11 @@ import DiscordPresence from "./utils/DiscordPresence";
 import { getModsTabTemplate } from "./components/mods-tab/modsTab";
 import { getModItemTemplate } from "./components/mods-item/modsItem";
 import { getAboutCategoryTemplate } from "./components/about-category/aboutCategory";
-import { applyUserAppearance, writeAppearance, setupAppearanceControls } from "./components/appearance-category/appearanceCategory";
-import { getTweaksIcon, writeTweaks, setupTweaksControls, applyTweaks, initPerformanceMode } from "./components/tweaks-category/tweaksCategory";
-import { writeStreamingPerformance, setupStreamingPerformanceControls } from "./components/streaming-performance/streamingPerformance";
+import { applyUserAppearance } from "./components/appearance-category/appearanceCategory";
+import { applyTweaks, initPerformanceMode } from "./components/tweaks-category/tweaksCategory";
+import { handlePlusRoute, injectPlusNavButton, resetPlusButtonInjection } from "./components/plus-page/plusPage";
+import { injectPartyButton, handlePartyRoute, resetPartyButtonInjection, initPartySystem } from "./components/party-button/partyButton";
+import partyService from "./utils/PartyService";
 // NOTE: Theme UI removed - liquid-glass is locked
 // import { getDefaultThemeTemplate } from "./components/default-theme/defaultTheme";
 import { getBackButton } from "./components/back-btn/backBtn";
@@ -54,7 +56,7 @@ let settingsInitialized = false;
 let pluginsLoaded = false;
 
 // Debounce interval for mutation observer (ms) - reduces CPU by batching rapid mutations
-const OBSERVER_DEBOUNCE_MS = 100;
+const OBSERVER_DEBOUNCE_MS = 200; // Increased from 100ms to reduce CPU usage
 
 // Check if performance mode is enabled (skip observer processing)
 function isPerformanceModeActive(): boolean {
@@ -172,6 +174,69 @@ function setObserverHandlerActive(id: string, active: boolean): void {
     }
 }
 
+
+// ============================================
+// NAVIGATION STATE MANAGER
+// Coordinates all navigation-related DOM manipulation to prevent flickering
+// ============================================
+interface NavigationState {
+    isTransitioning: boolean;
+    lastHash: string;
+    transitionStartTime: number;
+    pendingCallbacks: (() => void)[];
+    transitionTimeout: ReturnType<typeof setTimeout> | null;
+}
+
+const navState: NavigationState = {
+    isTransitioning: false,
+    lastHash: '',
+    transitionStartTime: 0,
+    pendingCallbacks: [],
+    transitionTimeout: null
+};
+
+function startNavTransition(): void {
+    // Clear any existing transition timeout
+    if (navState.transitionTimeout) {
+        clearTimeout(navState.transitionTimeout);
+    }
+
+    navState.isTransitioning = true;
+    navState.transitionStartTime = Date.now();
+    navState.lastHash = location.hash;
+
+    // Signal to CSS/plugins that we're transitioning
+    document.body.classList.add('streamgo-nav-transitioning');
+
+    // Auto-end transition after duration (safety fallback)
+    navState.transitionTimeout = setTimeout(() => {
+        endNavTransition();
+    }, TIMEOUTS.NAV_TRANSITION_DURATION + 100);
+}
+
+function endNavTransition(): void {
+    if (!navState.isTransitioning) return;
+
+    navState.isTransitioning = false;
+    document.body.classList.remove('streamgo-nav-transitioning');
+
+    // Clear timeout if still active
+    if (navState.transitionTimeout) {
+        clearTimeout(navState.transitionTimeout);
+        navState.transitionTimeout = null;
+    }
+
+    // Execute all pending callbacks
+    const callbacks = navState.pendingCallbacks;
+    navState.pendingCallbacks = [];
+    callbacks.forEach(cb => {
+        try {
+            cb();
+        } catch (e) {
+            logger.error(`Error executing nav transition callback: ${e}`);
+        }
+    });
+}
 
 // ============================================
 // ASYNC FILE SYSTEM UTILITIES WITH CACHING
@@ -399,6 +464,10 @@ function initializeCoreFeatures(): void {
     // Initialize performance mode (applies body class based on saved preference)
     initPerformanceMode();
 
+    // Initialize party system (WebSocket sync for watch parties)
+    initPartySystem();
+    setupPartyListeners();
+
     // Load enabled plugins asynchronously (non-blocking) - only once
     if (!pluginsLoaded) {
         pluginsLoaded = true;
@@ -430,6 +499,9 @@ window.addEventListener("load", async () => {
 
     // Reload server configuration
     reloadServer();
+
+    // Check and install bundled addons on first login (silently)
+    checkAndInstallBundledAddons();
 
     const checkUpdates = localStorage.getItem(STORAGE_KEYS.CHECK_UPDATES_ON_STARTUP);
     if (checkUpdates === "true") {
@@ -473,6 +545,15 @@ window.addEventListener("load", async () => {
     // Inject custom logo on intro/login pages
     injectIntroLogo();
 
+    // Initialize nav bar fixes (rename Board to Home, ensure elements visible)
+    initNavBarFixes();
+
+    // Inject Plus nav button in top bar
+    injectPlusNavButton();
+
+    // Inject Watch Party button on detail pages
+    injectPartyButton();
+
     // Get transparency status once and reuse
     const isTransparencyEnabled = await getTransparencyStatus();
 
@@ -494,6 +575,9 @@ window.addEventListener("load", async () => {
 
     // Handle navigation changes
     window.addEventListener("hashchange", async () => {
+        // Start coordinated navigation transition to prevent flickering
+        startNavTransition();
+
         if (isTransparencyEnabled) {
             addTitleBar();
         }
@@ -513,10 +597,19 @@ window.addEventListener("load", async () => {
 
             // Save stream info for Quick Resume (Continue Watching)
             saveCurrentStreamInfo();
+
+            // Sync stream to party if user is party owner
+            syncStreamToParty();
+
+            // Initialize party video sync (play/pause/seek)
+            initPartyVideoSync();
         } else {
             // Cleanup player overlay and video filter when leaving player page
             cleanupPlayerOverlay();
             cleanupVideoFilter();
+
+            // Cleanup party video sync
+            cleanupPartyVideoSync();
 
             // Reset external player flag if stuck (safety mechanism)
             if (isHandlingExternalPlayer) {
@@ -526,12 +619,23 @@ window.addEventListener("load", async () => {
             }
         }
 
-        // Reinject icon on navigation (in case theme is active)
-        // Use setTimeout to ensure DOM has updated after navigation
+        // Icon injection is now handled by initNavBarFixes() handleNavFixes callback
+        // which runs after NAV_TRANSITION_DURATION to ensure DOM has settled
+        // Only inject intro logo here (separate concern from nav bar icons)
         setTimeout(() => {
-            injectAppIconInGlassTheme();
             injectIntroLogo();
         }, TIMEOUTS.NAVIGATION_DEBOUNCE);
+
+        // Handle Plus page route - dedicated page for StreamGo settings
+        if (handlePlusRoute()) {
+            logger.info("[Navigation] Plus page route handled");
+            return;
+        }
+
+        // Handle party button - inject on detail pages
+        handlePartyRoute();
+        resetPartyButtonInjection();
+        injectPartyButton();
 
         // Clean up event listeners when leaving settings
         if (!location.href.includes("#/settings")) {
@@ -549,137 +653,23 @@ window.addEventListener("load", async () => {
 
         // Only create sections if they don't exist yet
         if (!sectionsAlreadyExist) {
-            // Get plugins asynchronously (non-blocking)
-            const modLists = await getModListsAsync();
-            const themesList = modLists.themes;
-            const pluginsList = modLists.plugins;
-
-            logger.info("Adding 'Plus' sections...");
+            logger.info("Adding 'Plus' section...");
             Settings.addSection("enhanced", "Plus");
-            Settings.addCategory("Themes", "enhanced", getThemeIcon());
-            Settings.addCategory("Plugins", "enhanced", getPluginIcon());
-            Settings.addCategory("Tweaks", "enhanced", getTweaksIcon());
             Settings.addCategory("About", "enhanced", getAboutIcon());
 
-            Settings.addButton("Open Themes Folder", "openthemesfolderBtn", SELECTORS.THEMES_CATEGORY);
-            Settings.addButton("Open Plugins Folder", "openpluginsfolderBtn", SELECTORS.PLUGINS_CATEGORY);
-
             writeAbout();
-            writeAppearance();
-            writeTweaks();
-            writeStreamingPerformance();
-
-            // Add themes to settings (liquid-glass is locked and can't be removed)
-            const LOCKED_THEME = "liquid-glass.theme.css";
-            themesList.forEach(theme => {
-                // Check user path first, then bundled path
-                const userPath = join(properties.themesPath, theme);
-                const bundledPath = join(properties.bundledThemesPath, theme);
-                const themePath = existsSync(userPath) ? userPath : bundledPath;
-
-                const metaData = Helpers.extractMetadataFromFile(themePath);
-                if (metaData && metaData.name && metaData.description && metaData.author && metaData.version) {
-                    // Add locked flag for the glass theme
-                    const isLocked = theme === LOCKED_THEME;
-                    Settings.addItem("theme", theme, {
-                        name: metaData.name,
-                        description: metaData.description,
-                        author: metaData.author,
-                        version: metaData.version,
-                        updateUrl: metaData.updateUrl,
-                        locked: isLocked
-                    });
-                }
-            });
-
-            // Add plugins to settings grouped by author
-            interface PluginData {
-                fileName: string;
-                metaData: {
-                    name: string;
-                    description: string;
-                    author: string;
-                    version: string;
-                    updateUrl?: string;
-                    source?: string;
-                };
-            }
-
-            // Group plugins by author category (Bo0ii vs Revenge977/others)
-            const bo0iiPlugins: PluginData[] = [];
-            const revenge977Plugins: PluginData[] = [];
-
-            pluginsList.forEach(plugin => {
-                // Check user path first, then bundled path
-                const userPath = join(properties.pluginsPath, plugin);
-                const bundledPath = join(properties.bundledPluginsPath, plugin);
-                const pluginPath = existsSync(userPath) ? userPath : bundledPath;
-
-                const metaData = Helpers.extractMetadataFromFile(pluginPath);
-                if (metaData && metaData.name && metaData.description && metaData.author && metaData.version) {
-                    const pluginData: PluginData = {
-                        fileName: plugin,
-                        metaData: {
-                            name: metaData.name,
-                            description: metaData.description,
-                            author: metaData.author,
-                            version: metaData.version,
-                            updateUrl: metaData.updateUrl,
-                            source: metaData.source
-                        }
-                    };
-
-                    // Categorize: Bo0ii's plugins vs everyone else (Revenge977's category)
-                    const authorLower = metaData.author.toLowerCase();
-                    if (authorLower === 'bo0ii') {
-                        bo0iiPlugins.push(pluginData);
-                    } else {
-                        revenge977Plugins.push(pluginData);
-                    }
-                }
-            });
-
-            // Create plugin category sections
-            Helpers.waitForElm(SELECTORS.PLUGINS_CATEGORY).then(() => {
-                const pluginsCategory = document.querySelector(SELECTORS.PLUGINS_CATEGORY);
-                if (!pluginsCategory) return;
-
-                // Create Bo0ii (Exclusive) section
-                if (bo0iiPlugins.length > 0) {
-                    const bo0iiSection = createPluginGroupSection('Bo0ii (Exclusive)', 'Exclusive plugins by Bo0ii', 'bo0ii-plugins');
-                    pluginsCategory.appendChild(bo0iiSection);
-                    bo0iiPlugins.forEach(plugin => {
-                        Settings.addPluginToGroup(plugin.fileName, plugin.metaData, 'bo0ii-plugins');
-                    });
-                }
-
-                // Create Revenge977 section (includes all non-Bo0ii plugins)
-                if (revenge977Plugins.length > 0) {
-                    const revenge977Section = createPluginGroupSection('Revenge 9.7.7 and Community', 'Plugins by Revenge 9.7.7 and Community', 'revenge977-plugins');
-                    pluginsCategory.appendChild(revenge977Section);
-                    revenge977Plugins.forEach(plugin => {
-                        Settings.addPluginToGroup(plugin.fileName, plugin.metaData, 'revenge977-plugins');
-                    });
-                }
-
-                // Setup collapsible handlers for plugin groups (called here for initial setup)
-                setupPluginGroupHandlers();
-            }).catch(err => logger.error("Failed to setup plugins: " + err));
         }
 
         // ALWAYS inject styles and setup handlers on every settings visit
         // These functions are idempotent (check for existing styles/handlers internally)
         // This ensures handlers are re-attached when DOM is recreated after navigation
-        injectCollapsibleStyles();
         injectAboutSectionStyles();
-        injectPluginGroupStyles();
 
         // Setup collapsible handlers - ALWAYS called to re-attach handlers after navigation
         // The handler functions check for data-*-handler attributes to avoid duplicates
         setupCollapsibleHandlers();
-        setupPluginGroupHandlers();
 
-        // Browse plugins/themes from StreamGo registry
+        // Browse plugins/themes from StreamGo registry (Community Marketplace)
         setupBrowseModsButton();
 
         // Check for updates button
@@ -694,15 +684,6 @@ window.addEventListener("load", async () => {
         // Enable transparency toggle
         setupTransparencyToggle();
 
-        // Appearance customization controls
-        setupAppearanceControls();
-
-        // Tweaks controls (includes player settings)
-        setupTweaksControls();
-
-        // Streaming performance controls
-        setupStreamingPerformanceControls();
-
         // Inject external player options into Stremio's native Player settings
         injectExternalPlayerOptions();
 
@@ -712,8 +693,6 @@ window.addEventListener("load", async () => {
         // ModManager listeners - safe to call multiple times
         ModManager.togglePluginListener();
         ModManager.scrollListener();
-        ModManager.openThemesFolder();
-        ModManager.openPluginsFolder();
     });
 });
 
@@ -833,23 +812,257 @@ function applyUserTheme(): void {
 function refreshThemePosition(): void {
     const themeElement = document.getElementById("activeTheme") as HTMLLinkElement;
     if (!themeElement) return;
-
-    // Store the href before removing
-    const href = themeElement.href;
-
-    // Remove from current position
-    themeElement.remove();
-
-    // Create a fresh link element and append to end of head
-    const newThemeElement = document.createElement('link');
-    newThemeElement.id = "activeTheme";
-    newThemeElement.rel = "stylesheet";
-    newThemeElement.href = href;
-
-    // Append to end of head (highest CSS priority)
-    document.head.appendChild(newThemeElement);
-
+    // appendChild on existing element moves it to end (no remove/recreate needed)
+    document.head.appendChild(themeElement);
     logger.info("Theme position refreshed - moved to end of head for CSS priority");
+}
+
+// Bundled Stremio addons to auto-install on first login
+const BUNDLED_ADDONS = [
+    'https://torrentio.strem.fun/manifest.json'
+];
+
+/**
+ * Silently install bundled Stremio addons on first login
+ * Only runs once when user logs in for the first time
+ */
+async function installBundledAddons(): Promise<void> {
+    try {
+        // Check if already installed
+        const alreadyInstalled = localStorage.getItem(STORAGE_KEYS.BUNDLED_ADDONS_INSTALLED) === 'true';
+        if (alreadyInstalled) {
+            logger.info('Bundled addons already marked as installed');
+            return;
+        }
+
+        // Get auth key from profile (user must be logged in)
+        const profileStr = localStorage.getItem('profile');
+        if (!profileStr) {
+            logger.info('User not logged in yet, skipping addon installation');
+            return;
+        }
+
+        let profile;
+        try {
+            profile = JSON.parse(profileStr);
+        } catch (error) {
+            logger.warn('Invalid profile data:', error);
+            return;
+        }
+
+        const authKey = profile?.auth?.key;
+        if (!authKey) {
+            logger.warn('No auth key found in profile');
+            return;
+        }
+
+        logger.info('Starting bundled addon installation process...');
+
+        // Get current addons from Stremio API
+        logger.info('Fetching current addons from Stremio API...');
+        const getResponse = await fetch('https://api.strem.io/api/addonCollectionGet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'AddonCollectionGet', authKey })
+        });
+
+        if (!getResponse.ok) {
+            logger.error(`Failed to fetch current addons: HTTP ${getResponse.status}`);
+            return;
+        }
+
+        const getData = await getResponse.json();
+        if (!getData.result || !Array.isArray(getData.result.addons)) {
+            logger.error('Invalid response from addonCollectionGet:', getData);
+            return;
+        }
+
+        const existingAddons = getData.result.addons || [];
+        logger.info(`Found ${existingAddons.length} existing addon(s)`);
+
+        const existingUrls = new Set(
+            existingAddons.map((addon: any) => addon.transportUrl || addon.manifestUrl)
+        );
+
+        // Filter out addons that are already installed
+        const addonsToInstall = BUNDLED_ADDONS.filter(url => !existingUrls.has(url));
+
+        logger.info(`Addons to install: ${addonsToInstall.length} of ${BUNDLED_ADDONS.length}`);
+
+        if (addonsToInstall.length === 0) {
+            // All addons already installed, verify they're actually there
+            const allPresent = BUNDLED_ADDONS.every(url => existingUrls.has(url));
+            if (allPresent) {
+                localStorage.setItem(STORAGE_KEYS.BUNDLED_ADDONS_INSTALLED, 'true');
+                logger.info('All bundled addons verified as installed');
+                return;
+            } else {
+                logger.warn('Bundled addons missing despite check - continuing installation');
+            }
+        }
+
+        // Fetch manifests for new addons
+        logger.info('Fetching manifests for new addons...');
+        const newAddons = [];
+        const failedAddons = [];
+
+        for (const addonUrl of addonsToInstall) {
+            try {
+                logger.info(`Fetching manifest from: ${addonUrl}`);
+                const manifestResponse = await fetch(addonUrl, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (!manifestResponse.ok) {
+                    logger.error(`Failed to fetch manifest for ${addonUrl}: HTTP ${manifestResponse.status}`);
+                    failedAddons.push(addonUrl);
+                    continue;
+                }
+
+                const manifest = await manifestResponse.json();
+
+                if (!manifest || !manifest.id || !manifest.name) {
+                    logger.error(`Invalid manifest from ${addonUrl}:`, manifest);
+                    failedAddons.push(addonUrl);
+                    continue;
+                }
+
+                newAddons.push({
+                    transportUrl: addonUrl,
+                    manifestUrl: addonUrl,
+                    manifest: manifest
+                });
+                logger.info(`✓ Successfully fetched manifest for "${manifest.name}" (${manifest.id})`);
+            } catch (error) {
+                logger.error(`Error fetching manifest for ${addonUrl}:`, error);
+                failedAddons.push(addonUrl);
+            }
+        }
+
+        if (newAddons.length === 0) {
+            logger.error('Failed to fetch any addon manifests. Failed URLs:', failedAddons);
+            return;
+        }
+
+        if (failedAddons.length > 0) {
+            logger.warn(`Failed to fetch ${failedAddons.length} addon manifest(s):`, failedAddons);
+        }
+
+        // Combine existing addons with new ones
+        const updatedAddons = [...existingAddons, ...newAddons];
+        logger.info(`Preparing to install ${newAddons.length} new addon(s)...`);
+
+        // Install via Stremio API
+        const setResponse = await fetch('https://api.strem.io/api/addonCollectionSet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'AddonCollectionSet',
+                authKey: authKey,
+                addons: updatedAddons
+            })
+        });
+
+        if (!setResponse.ok) {
+            logger.error(`Failed to install addons: HTTP ${setResponse.status}`);
+            return;
+        }
+
+        const setData = await setResponse.json();
+
+        if (setData.result?.success) {
+            // Verify installation by checking the collection again
+            logger.info('Installation API call succeeded, verifying...');
+
+            const verifyResponse = await fetch('https://api.strem.io/api/addonCollectionGet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'AddonCollectionGet', authKey })
+            });
+
+            if (verifyResponse.ok) {
+                const verifyData = await verifyResponse.json();
+                if (verifyData.result?.addons) {
+                    const verifyUrls = new Set(
+                        verifyData.result.addons.map((addon: any) => addon.transportUrl || addon.manifestUrl)
+                    );
+                    const allInstalled = BUNDLED_ADDONS.every(url => verifyUrls.has(url));
+
+                    if (allInstalled) {
+                        localStorage.setItem(STORAGE_KEYS.BUNDLED_ADDONS_INSTALLED, 'true');
+                        logger.info(`✓ Successfully installed and verified ${newAddons.length} bundled addon(s)`);
+                        logger.info('Installed addons:', newAddons.map(a => a.manifest.name).join(', '));
+
+                        // Reload to update UI with new addons
+                        setTimeout(() => {
+                            logger.info('Reloading to show bundled addons...');
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        logger.error('Installation reported success but verification failed - addons not found in collection');
+                        logger.error('Expected URLs:', BUNDLED_ADDONS);
+                        logger.error('Found URLs:', Array.from(verifyUrls));
+                    }
+                }
+            } else {
+                logger.warn('Verification request failed but installation succeeded - marking as installed');
+                localStorage.setItem(STORAGE_KEYS.BUNDLED_ADDONS_INSTALLED, 'true');
+
+                // Reload to update UI
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
+        } else {
+            logger.error('Failed to install bundled addons. API response:', setData);
+        }
+    } catch (error) {
+        logger.error('Critical error installing bundled addons:', error);
+    }
+}
+
+/**
+ * Check for user login and install bundled addons on first login
+ * Polls until user logs in, then installs once
+ */
+function checkAndInstallBundledAddons(): void {
+    const alreadyInstalled = localStorage.getItem(STORAGE_KEYS.BUNDLED_ADDONS_INSTALLED) === 'true';
+    if (alreadyInstalled) {
+        return;
+    }
+
+    // Check immediately first
+    installBundledAddons().catch(err => {
+        logger.error('Error in initial bundled addon check:', err);
+    });
+
+    // If user not logged in yet, poll every 2 seconds (max 60 seconds = 30 checks)
+    let checkCount = 0;
+    const maxChecks = 30;
+    
+    const checkInterval = setInterval(async () => {
+        checkCount++;
+        
+        const profileStr = localStorage.getItem('profile');
+        if (profileStr) {
+            try {
+                const profile = JSON.parse(profileStr);
+                if (profile?.auth?.key) {
+                    // User is logged in, install addons
+                    clearInterval(checkInterval);
+                    await installBundledAddons();
+                }
+            } catch {
+                // Invalid profile, continue checking
+            }
+        }
+
+        // Stop checking after max attempts
+        if (checkCount >= maxChecks) {
+            clearInterval(checkInterval);
+        }
+    }, 2000);
 }
 
 async function loadEnabledPlugins(): Promise<void> {
@@ -1171,11 +1384,20 @@ function injectAppIconInGlassTheme(): void {
 
     // Function to inject icon into a navigation bar element
     const injectIconIntoNavBar = (navBar: Element): void => {
-        // Check if icon already exists in this nav bar
+        // Check if icon already exists in this nav bar AND is still in the document
         const existingIcon = navBar.querySelector('.app-icon-glass-theme');
-        if (existingIcon) {
-            return; // Icon already exists, no need to re-inject
+        if (existingIcon && document.body.contains(existingIcon)) {
+            return; // Icon exists and is in DOM, no need to re-inject
         }
+
+        // Clean up any orphaned icons that might be in document but not in the main nav bar
+        const orphanedIcons = document.querySelectorAll('.app-icon-glass-theme');
+        orphanedIcons.forEach(icon => {
+            // Only remove if not inside main-nav-bars-container
+            if (!icon.closest('[class*="main-nav-bars-container"]')) {
+                icon.remove();
+            }
+        });
 
         // Get the icon path - images folder is in app root
         // Use same pattern as theme loading: check if packaged
@@ -1215,28 +1437,28 @@ function injectAppIconInGlassTheme(): void {
         logger.info("App icon injected in glass theme at top-left corner: " + iconUrl);
     };
 
-    // Function to find and inject icon into the MAIN navigation bar only
+    // Function to find and inject icon into the VISIBLE navigation bar only
     const tryInjectIcon = (): void => {
-        // IMPORTANT: Target only the main top navigation bar inside main-nav-bars-container
-        // Do NOT target secondary nav bars inside route content (those are page-specific)
-        const selectors = [
-            // Primary: horizontal nav bar inside main-nav-bars-container (this is the main top nav)
-            '[class*="main-nav-bars-container"] [class*="horizontal-nav-bar"]',
-            '[class*="main-nav-bars-container"] nav[class*="horizontal"]',
-            // Fallback with specific class names (may break when Stremio updates)
-            '.main-nav-bars-container-wNjS5 .horizontal-nav-bar-container-Y_zvK',
-            '.main-nav-bars-container-wNjS5 [class*="horizontal-nav-bar"]'
-        ];
+        // Find all horizontal nav bars inside main-nav-bars-container
+        const allNavBars = document.querySelectorAll('[class*="main-nav-bars-container"] [class*="horizontal-nav-bar-container"]');
 
-        for (const selector of selectors) {
-            const navBar = document.querySelector(selector);
-            if (navBar) {
-                injectIconIntoNavBar(navBar);
-                return; // Successfully injected, exit
+        // Find the VISIBLE nav bar (width > 0)
+        let visibleNavBar: HTMLElement | undefined;
+        for (let i = 0; i < allNavBars.length; i++) {
+            const navBar = allNavBars[i] as HTMLElement;
+            const rect = navBar.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                visibleNavBar = navBar;
+                break;
             }
         }
-        
-        // If no nav bar found, schedule a retry
+
+        if (visibleNavBar) {
+            injectIconIntoNavBar(visibleNavBar);
+            return; // Successfully injected, exit
+        }
+
+        // If no visible nav bar found, schedule a retry
         if (iconRetryTimeout) {
             clearTimeout(iconRetryTimeout);
         }
@@ -1278,6 +1500,326 @@ function injectAppIconInGlassTheme(): void {
             // Ignore errors - observer will handle it
         });
     });
+}
+
+// Rename "Board" to "Home" and ensure nav elements stay visible on all pages
+let navFixObserverActive = false;
+
+function initNavBarFixes(): void {
+    // Function to rename "Board" to "Home" in navigation
+    const renameBoardToHome = (): void => {
+        // Find all navigation links with "Board" text
+        const navSelectors = [
+            '[class*="nav-tab-button"] [class*="label"]',
+            '[class*="nav-tab-button"]',
+            'a[title="Board"]',
+            'a[href="#/"]',
+            '.nav-label'
+        ];
+
+        for (const selector of navSelectors) {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(el => {
+                // Check if element contains "Board" text
+                if (el.textContent?.trim() === 'Board') {
+                    el.textContent = 'Home';
+                }
+                // Also update title attribute if present
+                if (el.getAttribute('title') === 'Board') {
+                    el.setAttribute('title', 'Home');
+                }
+            });
+        }
+
+        // Also check for nested text nodes using TreeWalker (more efficient than querySelectorAll('*'))
+        const allNavLinks = document.querySelectorAll('[class*="vertical-nav-bar"] a, [class*="horizontal-nav-bar"] a');
+        allNavLinks.forEach(link => {
+            const walker = document.createTreeWalker(link, NodeFilter.SHOW_TEXT, null);
+            let node;
+            while ((node = walker.nextNode())) {
+                if (node.textContent?.trim() === 'Board') {
+                    node.textContent = 'Home';
+                }
+            }
+        });
+    };
+
+    // Store buttons-container HTML for recreation when Stremio doesn't create it
+    let storedButtonsContainerHTML: string | null = null;
+    let storedButtonsContainerClasses: string | null = null;
+
+    // Function to ensure buttons-container (profile/fullscreen) is visible
+    const ensureNavElementsVisible = (): void => {
+        // Find ALL buttons-containers in the document (main nav or route-specific)
+        const allButtonsContainers = document.querySelectorAll('[class*="buttons-container"]');
+
+        // Store the first valid buttons-container we find (for recreation on other pages)
+        if (!storedButtonsContainerHTML) {
+            allButtonsContainers.forEach(container => {
+                if (container.innerHTML && container.innerHTML.trim().length > 0) {
+                    storedButtonsContainerHTML = container.innerHTML;
+                    storedButtonsContainerClasses = container.className;
+                    logger.info("Stored buttons-container HTML for recreation on other pages");
+                }
+            });
+        }
+
+        // Find the VISIBLE horizontal nav bar (width > 0)
+        const allNavBars = document.querySelectorAll('[class*="main-nav-bars-container"] [class*="horizontal-nav-bar"]');
+        let mainHorizontalNav: HTMLElement | undefined;
+
+        for (let i = 0; i < allNavBars.length; i++) {
+            const navBar = allNavBars[i] as HTMLElement;
+            const rect = navBar.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                mainHorizontalNav = navBar;
+                break;
+            }
+        }
+
+        if (!mainHorizontalNav) return;
+
+        // Find buttons-container in main nav bar
+        let buttonsContainer = mainHorizontalNav.querySelector('[class*="buttons-container"]');
+
+        // Remove any old cloned containers before potentially adding a new one
+        const oldClones = mainHorizontalNav.querySelectorAll('.streamgo-buttons-clone');
+        oldClones.forEach((clone: Element) => clone.remove());
+
+        // If buttons-container doesn't exist in main nav, try to find one elsewhere or recreate
+        if (!buttonsContainer) {
+            // First, check if there's one in route content to clone
+            const routeButtonsContainer = document.querySelector(
+                '[class*="route-content"] [class*="horizontal-nav-bar"] [class*="buttons-container"]'
+            );
+
+            if (routeButtonsContainer && routeButtonsContainer.innerHTML.trim().length > 0) {
+                // Clone from route content
+                const clonedContainer = routeButtonsContainer.cloneNode(true) as HTMLElement;
+                clonedContainer.classList.add('streamgo-buttons-clone');
+                mainHorizontalNav.appendChild(clonedContainer);
+                buttonsContainer = clonedContainer;
+                logger.info("Cloned buttons-container from route-content to main nav bar");
+            } else if (storedButtonsContainerHTML) {
+                // Recreate from stored HTML
+                const recreatedContainer = document.createElement('div');
+                recreatedContainer.className = storedButtonsContainerClasses || 'buttons-container';
+                recreatedContainer.classList.add('streamgo-buttons-clone');
+                recreatedContainer.innerHTML = storedButtonsContainerHTML;
+                mainHorizontalNav.appendChild(recreatedContainer);
+                buttonsContainer = recreatedContainer;
+                logger.info("Recreated buttons-container from stored HTML in main nav bar");
+            }
+        }
+
+        // Ensure buttons-container visibility in main nav with aggressive inline styles
+        if (buttonsContainer) {
+            const el = buttonsContainer as HTMLElement;
+            el.style.cssText = `
+                display: flex !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                position: absolute !important;
+                right: 16px !important;
+                top: 50% !important;
+                transform: translateY(-50%) !important;
+                z-index: 100 !important;
+                align-items: center !important;
+                gap: 10px !important;
+                margin-left: 20px !important;
+            `;
+
+            // Ensure search bar doesn't overlap with buttons
+            const searchBar = mainHorizontalNav.querySelector('[class*="search-bar"]') as HTMLElement;
+            if (searchBar) {
+                searchBar.style.marginRight = '80px';
+            }
+
+            // Inject party button into horizontal nav buttons-container (after fullscreen)
+            if (!buttonsContainer.querySelector('#nav-party-btn')) {
+                const fullscreenBtn = buttonsContainer.querySelector('[title*="fullscreen"]');
+                if (fullscreenBtn) {
+                    const partyBtn = document.createElement('div');
+                    partyBtn.id = 'nav-party-btn';
+                    partyBtn.setAttribute('tabindex', '-1');
+                    partyBtn.setAttribute('title', 'Watch Party');
+                    partyBtn.className = fullscreenBtn.className;
+                    partyBtn.innerHTML = `
+                        <svg class="icon-T8MU6" viewBox="0 0 24 24" style="width: 22px; height: 22px;">
+                            <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" style="fill: currentcolor;"></path>
+                        </svg>
+                        <span id="nav-party-indicator" style="display: none; position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; background: #22c55e; border-radius: 50%; border: 2px solid rgba(0,0,0,0.3);"></span>
+                    `;
+                    partyBtn.style.position = 'relative';
+                    partyBtn.style.cursor = 'pointer';
+
+                    // Insert after fullscreen button
+                    if (fullscreenBtn.nextSibling) {
+                        fullscreenBtn.parentElement?.insertBefore(partyBtn, fullscreenBtn.nextSibling);
+                    } else {
+                        fullscreenBtn.parentElement?.appendChild(partyBtn);
+                    }
+
+                    // Add click handler
+                    partyBtn.addEventListener('click', () => {
+                        import("./components/party-popover/partyPopover").then(({ openPartyPopover }) => {
+                            openPartyPopover();
+                        });
+                    });
+
+                    // Add hover effect
+                    partyBtn.addEventListener('mouseenter', () => {
+                        partyBtn.style.color = '#10b981';
+                    });
+                    partyBtn.addEventListener('mouseleave', () => {
+                        if (!partyService.connected) {
+                            partyBtn.style.color = '';
+                        }
+                    });
+
+                    logger.info('Injected party button into horizontal nav bar');
+                }
+            }
+
+            // Update party button state
+            updateNavPartyButtonState();
+        }
+
+        // Also ensure any buttons-containers in other nav bars are visible
+        allButtonsContainers.forEach(container => {
+            const el = container as HTMLElement;
+            if (el.style.display === 'none' || el.style.visibility === 'hidden') {
+                el.style.display = '';
+                el.style.visibility = '';
+            }
+            if (!el.style.zIndex || parseInt(el.style.zIndex) < 100) {
+                el.style.zIndex = '100';
+            }
+        });
+
+        // Ensure app icon is visible
+        const appIcons = document.querySelectorAll('.app-icon-glass-theme');
+        appIcons.forEach(icon => {
+            const el = icon as HTMLElement;
+            el.style.display = 'block';
+            el.style.visibility = 'visible';
+            el.style.opacity = '0.7';
+        });
+    };
+
+    // Run fixes immediately
+    renameBoardToHome();
+    ensureNavElementsVisible();
+
+    // Set up observer to keep fixing on DOM changes
+    if (!navFixObserverActive) {
+        registerObserverHandler('nav-fixes', () => {
+            renameBoardToHome();
+            ensureNavElementsVisible();
+            // Also check Plus button on DOM changes
+            if (!document.getElementById('plus-nav-button')) {
+                injectPlusNavButton();
+            }
+        });
+        navFixObserverActive = true;
+    }
+
+    // Set up observer for party button on detail pages
+    registerObserverHandler('party-button', () => {
+        // Only inject on detail pages
+        if (location.hash.includes('#/detail/')) {
+            if (!document.getElementById('party-watch-button')) {
+                injectPartyButton();
+            }
+        }
+    });
+
+    // Main navigation routes that should show blur loading
+    const mainNavRoutes = ['#/', '#/discover', '#/library', '#/calendar', '#/addons', '#/settings'];
+
+    // Check if current route is a main nav page
+    const isMainNavRoute = (hash: string): boolean => {
+        return mainNavRoutes.some(route => hash === route || hash.startsWith(route + '/') || hash.startsWith(route + '?'));
+    };
+
+    // Create page loading blur overlay (for Glass theme)
+    const createLoadingOverlay = (): HTMLElement => {
+        let overlay = document.getElementById('streamgo-page-loader');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'streamgo-page-loader';
+            document.body.appendChild(overlay);
+        }
+        return overlay;
+    };
+
+    // Show loading blur overlay
+    const showLoadingOverlay = (): void => {
+        const overlay = createLoadingOverlay();
+        // Force reflow for smooth animation
+        overlay.offsetHeight;
+        overlay.classList.remove('fade-out');
+        overlay.classList.add('active');
+    };
+
+    // Hide loading blur overlay with fade
+    const hideLoadingOverlay = (): void => {
+        const overlay = document.getElementById('streamgo-page-loader');
+        if (overlay && overlay.classList.contains('active')) {
+            overlay.classList.add('fade-out');
+            setTimeout(() => {
+                overlay.classList.remove('active', 'fade-out');
+            }, 350);
+        }
+    };
+
+    // Also run on hashchange to catch navigation - INSTANT rebuild with animation
+    const handleNavFixes = (): void => {
+        // Reset Plus button injection attempts at start of each navigation
+        resetPlusButtonInjection();
+
+        // Only show blur loading for main nav routes (Home, Discover, Library, Calendar, Addons, Settings)
+        const currentHash = location.hash || '#/';
+        if (isMainNavRoute(currentHash)) {
+            showLoadingOverlay();
+        }
+
+        // Add loading class for fade-in animation
+        const mainNav = document.querySelector('[class*="main-nav-bars-container"]');
+        if (mainNav) {
+            mainNav.classList.add('streamgo-nav-loading');
+        }
+
+        // Run ALL fixes as fast as possible to rebuild nav bar instantly
+        const runAllFixes = (): void => {
+            renameBoardToHome();
+            ensureNavElementsVisible();
+            injectAppIconInGlassTheme();
+            injectPlusNavButton();
+        };
+
+        // Run fixes with strategic timing (reduced from 11 calls to 3 for performance)
+        runAllFixes();
+        requestAnimationFrame(runAllFixes);
+        setTimeout(runAllFixes, 100);
+
+        // Remove loading states after fixes complete
+        setTimeout(() => {
+            if (mainNav) {
+                mainNav.classList.remove('streamgo-nav-loading');
+            }
+            runAllFixes();
+        }, 150);
+
+        // Hide blur overlay after extra 500ms delay (total ~650ms)
+        setTimeout(() => {
+            hideLoadingOverlay();
+        }, 650);
+    };
+
+    // Remove any existing listener before adding (prevent duplicates)
+    window.removeEventListener('hashchange', handleNavFixes);
+    window.addEventListener('hashchange', handleNavFixes);
 }
 
 // Inject custom StreamGo logo on intro/login/signup pages
@@ -1416,6 +1958,57 @@ function addTitleBar(): void {
     titleBar.querySelector("#closeApp-btn")?.addEventListener("click", () => {
         ipcRenderer.send(IPC_CHANNELS.CLOSE_WINDOW);
     });
+
+    // Party button
+    const partyBtn = titleBar.querySelector("#titlebar-party-btn");
+    if (partyBtn) {
+        partyBtn.addEventListener("click", () => {
+            // Import dynamically to avoid circular dependency
+            import("./components/party-popover/partyPopover").then(({ openPartyPopover }) => {
+                openPartyPopover();
+            });
+        });
+
+        // Update party button state
+        updateTitleBarPartyState();
+    }
+}
+
+/**
+ * Update title bar party button state
+ */
+function updateTitleBarPartyState(): void {
+    const partyBtn = document.querySelector("#titlebar-party-btn");
+    if (!partyBtn) return;
+
+    if (partyService.connected && partyService.room) {
+        partyBtn.classList.add("party-active");
+        partyBtn.setAttribute("title", `Watch Party: ${partyService.room.name} (${partyService.room.members.length} members)`);
+    } else {
+        partyBtn.classList.remove("party-active");
+        partyBtn.setAttribute("title", "Watch Party");
+    }
+}
+
+// Update nav bar party button state (horizontal nav)
+function updateNavPartyButtonState(): void {
+    const partyBtn = document.querySelector("#nav-party-btn") as HTMLElement;
+    const indicator = document.querySelector("#nav-party-indicator") as HTMLElement;
+    if (!partyBtn) return;
+
+    if (partyService.connected && partyService.room) {
+        partyBtn.style.color = '#10b981';
+        partyBtn.setAttribute("title", `Watch Party: ${partyService.room.name} (${partyService.room.members.length} members)`);
+        if (indicator) {
+            indicator.style.display = 'block';
+        }
+    } else {
+        partyBtn.style.color = '';
+        partyBtn.setAttribute("title", "Watch Party");
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+    }
 }
 
 // Track if external player options are already being monitored
@@ -1450,7 +2043,12 @@ function injectExternalPlayerOptions(): void {
 
             for (const menu of menus) {
                 const container = menu as HTMLElement;
-                if (container.dataset.enhanced === 'true') continue;
+                
+                // Check if container is visible (not hidden by display:none or visibility:hidden)
+                const style = window.getComputedStyle(container);
+                if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+                    continue;
+                }
 
                 // Find all clickable menu items - try various patterns
                 let existingItems = container.querySelectorAll('div[class*="option"]');
@@ -1476,7 +2074,23 @@ function injectExternalPlayerOptions(): void {
                 });
 
                 if (!isExternalPlayerMenu || !templateItem) continue;
-                if (container.querySelector('[data-enhanced-option="vlc"]')) continue;
+                
+                // Check if VLC/MPC-HC options already exist in THIS container (not globally)
+                // Only skip if they exist in the current visible container
+                const existingVlc = container.querySelector('[data-enhanced-option="vlc"]');
+                const existingMpchc = container.querySelector('[data-enhanced-option="mpchc"]');
+                if (existingVlc && existingMpchc) {
+                    // Options already exist, but ensure they're properly set up and visible
+                    // Also update selected state based on current selection
+                    updateSelectedState(container, existingItems);
+                    continue;
+                }
+
+                // Remove any old injected options from this container first (cleanup)
+                const oldVlc = container.querySelector('[data-enhanced-option="vlc"]');
+                const oldMpchc = container.querySelector('[data-enhanced-option="mpchc"]');
+                if (oldVlc) oldVlc.remove();
+                if (oldMpchc) oldMpchc.remove();
 
                 // TypeScript needs this after the null check
                 const itemTemplate: HTMLElement = templateItem;
@@ -1513,9 +2127,16 @@ function injectExternalPlayerOptions(): void {
                 mpchcOption.className = mpchcOption.className.replace(/selected[^\s]*/gi, '').replace(/checked[^\s]*/gi, '');
                 setOptionText(mpchcOption, 'MPC-HC');
 
+                // Create MPV option
+                const mpvOption = itemTemplate.cloneNode(true) as HTMLElement;
+                mpvOption.dataset.enhancedOption = 'mpv';
+                mpvOption.className = mpvOption.className.replace(/selected[^\s]*/gi, '').replace(/checked[^\s]*/gi, '');
+                setOptionText(mpvOption, 'MPV');
+
                 // Style options to be visually consistent
                 vlcOption.style.cursor = 'pointer';
                 mpchcOption.style.cursor = 'pointer';
+                mpvOption.style.cursor = 'pointer';
 
                 // Add click handlers
                 const handlePlayerSelect = async (player: string, displayName: string, e: Event) => {
@@ -1535,15 +2156,18 @@ function injectExternalPlayerOptions(): void {
                 // Add click handlers with cleanup registration
                 const vlcClickHandler = (e: Event) => handlePlayerSelect('vlc', 'VLC', e);
                 const mpchcClickHandler = (e: Event) => handlePlayerSelect('mpchc', 'MPC-HC', e);
+                const mpvClickHandler = (e: Event) => handlePlayerSelect('mpv', 'MPV', e);
                 vlcOption.addEventListener('click', vlcClickHandler);
                 mpchcOption.addEventListener('click', mpchcClickHandler);
+                mpvOption.addEventListener('click', mpvClickHandler);
                 registerEventCleanup('external-player-menu', () => {
                     vlcOption.removeEventListener('click', vlcClickHandler);
                     mpchcOption.removeEventListener('click', mpchcClickHandler);
+                    mpvOption.removeEventListener('click', mpvClickHandler);
                 });
 
                 // Add hover effect with cleanup registration
-                [vlcOption, mpchcOption].forEach(opt => {
+                [vlcOption, mpchcOption, mpvOption].forEach(opt => {
                     const enterHandler = () => { opt.style.backgroundColor = 'rgba(255,255,255,0.1)'; };
                     const leaveHandler = () => { opt.style.backgroundColor = ''; };
                     opt.addEventListener('mouseenter', enterHandler);
@@ -1558,17 +2182,22 @@ function injectExternalPlayerOptions(): void {
                 const itemsParent = itemTemplate.parentElement || container;
                 itemsParent.appendChild(vlcOption);
                 itemsParent.appendChild(mpchcOption);
+                itemsParent.appendChild(mpvOption);
 
                 // Also track when native options are clicked with cleanup
                 existingItems.forEach(item => {
                     const clickHandler = () => {
                         const text = (item.textContent || '').toLowerCase().trim();
+                        let displayName = text;
                         if (text === 'disabled') {
                             localStorage.setItem(STORAGE_KEYS.EXTERNAL_PLAYER, EXTERNAL_PLAYERS.BUILTIN);
+                            displayName = 'Disabled';
                         } else if (text.includes('m3u')) {
                             localStorage.setItem(STORAGE_KEYS.EXTERNAL_PLAYER, 'm3u');
+                            displayName = 'M3U';
                         }
                         logger.info(`External player set to: ${text}`);
+                        updateButtonText(displayName);
                         updatePlayerPathDisplay();
                     };
                     item.addEventListener('click', clickHandler);
@@ -1577,11 +2206,79 @@ function injectExternalPlayerOptions(): void {
                     });
                 });
 
-                logger.info("VLC and MPC-HC options injected successfully");
+                // Ensure all menu items are visible (Stremio might hide some)
+                existingItems.forEach(item => {
+                    const el = item as HTMLElement;
+                    const itemStyle = window.getComputedStyle(el);
+                    if (itemStyle.display === 'none') {
+                        el.style.display = '';
+                    }
+                    if (itemStyle.visibility === 'hidden') {
+                        el.style.visibility = 'visible';
+                    }
+                    if (itemStyle.opacity === '0') {
+                        el.style.opacity = '1';
+                    }
+                });
+
+                // Update selected state after injection
+                updateSelectedState(container, existingItems);
+
+                logger.info("VLC, MPC-HC, and MPV options injected successfully");
                 return true;
             }
         }
         return false;
+    };
+
+    // Helper function to update selected state in the menu
+    const updateSelectedState = (container: HTMLElement, existingItems: NodeListOf<Element>) => {
+        const currentPlayer = localStorage.getItem(STORAGE_KEYS.EXTERNAL_PLAYER) || EXTERNAL_PLAYERS.BUILTIN;
+        
+        // Clear all selected states first
+        const allItems = container.querySelectorAll('div[class*="option"], div[class*="menu-item"], div[class*="item"]');
+        allItems.forEach(item => {
+            const el = item as HTMLElement;
+            el.className = el.className.replace(/selected[^\s]*/gi, '').replace(/checked[^\s]*/gi, '');
+        });
+
+        // Set selected state based on current player
+        let targetItem: HTMLElement | null = null;
+        
+        if (currentPlayer === 'vlc') {
+            targetItem = container.querySelector('[data-enhanced-option="vlc"]') as HTMLElement;
+        } else if (currentPlayer === 'mpchc') {
+            targetItem = container.querySelector('[data-enhanced-option="mpchc"]') as HTMLElement;
+        } else if (currentPlayer === 'm3u' || currentPlayer === EXTERNAL_PLAYERS.BUILTIN) {
+            // Find the matching native option
+            existingItems.forEach(item => {
+                const text = (item.textContent || '').toLowerCase().trim();
+                if ((currentPlayer === 'm3u' && text.includes('m3u')) ||
+                    (currentPlayer === EXTERNAL_PLAYERS.BUILTIN && text === 'disabled')) {
+                    targetItem = item as HTMLElement;
+                }
+            });
+        }
+
+        // Apply selected state
+        if (targetItem) {
+            // Try to add selected/checked class (Stremio might use various class names)
+            const hasSelected = targetItem.className.match(/selected|checked/i);
+            if (!hasSelected) {
+                // Try common patterns
+                const classes = targetItem.className.split(/\s+/);
+                for (const cls of classes) {
+                    if (cls.includes('option') || cls.includes('item')) {
+                        // Try to find a selected variant
+                        const selectedClass = cls.replace(/(option|item)/i, '$1-selected') || 
+                                             cls.replace(/(option|item)/i, '$1-checked') ||
+                                             cls + '-selected';
+                        targetItem.className += ' ' + selectedClass;
+                        break;
+                    }
+                }
+            }
+        }
     };
 
     const updateButtonText = (text: string) => {
@@ -1594,16 +2291,26 @@ function injectExternalPlayerOptions(): void {
                 const labelDiv = button.querySelector('div[class*="label"]');
                 if (labelDiv) {
                     labelDiv.textContent = text;
+                    logger.info(`[ExternalPlayer] Updated button text to: ${text}`);
                 } else {
                     // Try to find any text-containing element
                     const textContainers = button.querySelectorAll('*');
+                    let updated = false;
                     textContainers.forEach(container => {
                         if (container.children.length === 0 && container.textContent) {
                             container.textContent = text;
+                            updated = true;
                         }
                     });
+                    if (updated) {
+                        logger.info(`[ExternalPlayer] Updated button text to: ${text} (fallback method)`);
+                    }
                 }
+            } else {
+                logger.warn('[ExternalPlayer] Could not find multiselect button');
             }
+        } else {
+            logger.warn('[ExternalPlayer] Could not find option container');
         }
     };
 
@@ -1619,8 +2326,8 @@ function injectExternalPlayerOptions(): void {
         const existingWarning = document.getElementById('enhanced-player-warning');
         if (existingWarning) existingWarning.remove();
 
-        // Only show for VLC or MPC-HC
-        if (externalPlayer !== 'vlc' && externalPlayer !== 'mpchc') return;
+        // Only show for VLC, MPC-HC, or MPV
+        if (externalPlayer !== 'vlc' && externalPlayer !== 'mpchc' && externalPlayer !== 'mpv') return;
 
         // Get detected path
         const detectedPath = await ipcRenderer.invoke(IPC_CHANNELS.DETECT_PLAYER, externalPlayer);
@@ -1652,26 +2359,80 @@ function injectExternalPlayerOptions(): void {
 
     // Use unified observer to watch for dropdown menus appearing anywhere in DOM
     registerObserverHandler('external-player-menu', (mutations) => {
-        // Only process if nodes were added
+        // Process if nodes were added or attributes changed (menu visibility)
         for (const mutation of mutations) {
             if (mutation.addedNodes.length > 0) {
-                injectOptionsIntoMenu();
+                // Small delay to ensure menu is fully rendered
+                setTimeout(() => {
+                    injectOptionsIntoMenu();
+                }, 50);
                 break;
+            }
+            // Also check for attribute changes that might indicate menu visibility
+            if (mutation.type === 'attributes' && 
+                (mutation.attributeName === 'style' || mutation.attributeName === 'class')) {
+                setTimeout(() => {
+                    injectOptionsIntoMenu();
+                }, 50);
             }
         }
     });
 
-    // Update button text and path display on load based on saved setting
-    // Use exponential backoff instead of fixed interval (95% fewer DOM queries)
-    const savedPlayer = localStorage.getItem(STORAGE_KEYS.EXTERNAL_PLAYER);
-    if (savedPlayer === 'vlc' || savedPlayer === 'mpchc') {
-        waitForElementWithBackoff(OPTION_CONTAINER_SELECTOR).then((optionContainer) => {
-            if (optionContainer) {
-                updateButtonText(savedPlayer === 'vlc' ? 'VLC' : 'MPC-HC');
-                updatePlayerPathDisplay();
+    // Also listen for clicks on the external player button to ensure injection
+    const setupButtonClickListener = () => {
+        const optionContainer = document.querySelector(OPTION_CONTAINER_SELECTOR);
+        if (optionContainer) {
+            const button = optionContainer.querySelector('div[class*="multiselect-button"]');
+            if (button && !button.hasAttribute('data-click-listener-attached')) {
+                button.setAttribute('data-click-listener-attached', 'true');
+                button.addEventListener('click', () => {
+                    // Small delay to let the menu appear
+                    setTimeout(() => {
+                        injectOptionsIntoMenu();
+                    }, 100);
+                });
             }
+        }
+    };
+
+    // Set up button click listener when settings page loads
+    if (location.href.includes('#/settings')) {
+        waitForElementWithBackoff(OPTION_CONTAINER_SELECTOR).then(() => {
+            setupButtonClickListener();
         });
     }
+
+    // Update button text and path display on load based on saved setting
+    // Use exponential backoff instead of fixed interval (95% fewer DOM queries)
+    const savedPlayer = localStorage.getItem(STORAGE_KEYS.EXTERNAL_PLAYER) || EXTERNAL_PLAYERS.BUILTIN;
+    waitForElementWithBackoff(OPTION_CONTAINER_SELECTOR).then((optionContainer) => {
+        if (optionContainer) {
+            let displayName = 'Disabled';
+            if (savedPlayer === 'vlc') {
+                displayName = 'VLC';
+            } else if (savedPlayer === 'mpchc') {
+                displayName = 'MPC-HC';
+            } else if (savedPlayer === 'mpv') {
+                displayName = 'MPV';
+            } else if (savedPlayer === 'm3u') {
+                displayName = 'M3U';
+            }
+
+            // Retry mechanism to handle race conditions with Stremio's initialization
+            // Try multiple times with delays to ensure our update persists
+            const retryUpdate = (attempts: number = 0) => {
+                updateButtonText(displayName);
+                if (attempts < 3) {
+                    setTimeout(() => retryUpdate(attempts + 1), 200);
+                }
+            };
+            retryUpdate();
+
+            if (savedPlayer === 'vlc' || savedPlayer === 'mpchc' || savedPlayer === 'mpv') {
+                updatePlayerPathDisplay();
+            }
+        }
+    });
 
     // Cleanup on navigation away from settings
     const cleanup = () => {
@@ -1681,6 +2442,39 @@ function injectExternalPlayerOptions(): void {
             window.removeEventListener('hashchange', cleanup);
             // Reset the initialization flag so it can be set up again when returning to settings
             externalPlayerOptionsInitialized = false;
+        } else {
+            // Re-setup button click listener and restore button text when returning to settings
+            waitForElementWithBackoff(OPTION_CONTAINER_SELECTOR).then((optionContainer) => {
+                setupButtonClickListener();
+
+                // Restore button text from saved setting
+                if (optionContainer) {
+                    const currentPlayer = localStorage.getItem(STORAGE_KEYS.EXTERNAL_PLAYER) || EXTERNAL_PLAYERS.BUILTIN;
+                    let displayName = 'Disabled';
+                    if (currentPlayer === 'vlc') {
+                        displayName = 'VLC';
+                    } else if (currentPlayer === 'mpchc') {
+                        displayName = 'MPC-HC';
+                    } else if (currentPlayer === 'mpv') {
+                        displayName = 'MPV';
+                    } else if (currentPlayer === 'm3u') {
+                        displayName = 'M3U';
+                    }
+
+                    // Retry mechanism to handle race conditions with Stremio's initialization
+                    const retryUpdate = (attempts: number = 0) => {
+                        updateButtonText(displayName);
+                        if (attempts < 3) {
+                            setTimeout(() => retryUpdate(attempts + 1), 200);
+                        }
+                    };
+                    retryUpdate();
+
+                    if (currentPlayer === 'vlc' || currentPlayer === 'mpchc' || currentPlayer === 'mpv') {
+                        updatePlayerPathDisplay();
+                    }
+                }
+            });
         }
     };
     window.addEventListener('hashchange', cleanup);
@@ -1760,8 +2554,8 @@ async function handleExternalPlayerInterception(): Promise<void> {
         return;
     }
 
-    // Only handle VLC and MPC-HC
-    if (externalPlayer !== 'vlc' && externalPlayer !== 'mpchc') {
+    // Only handle VLC, MPC-HC, and MPV
+    if (externalPlayer !== 'vlc' && externalPlayer !== 'mpchc' && externalPlayer !== 'mpv') {
         logger.info(`[ExternalPlayer] Skipping - unknown player type: ${externalPlayer}`);
         document.body.classList.remove('external-player-active');
         return;
@@ -2005,11 +2799,11 @@ async function handleExternalPlayerInterception(): Promise<void> {
 
                 // Log progress periodically (every 5 seconds)
                 const elapsed = Date.now() - startTime;
-                if (elapsed > 0 && elapsed % 5000 < 100) {
+                if (elapsed > 0 && elapsed % 5000 < 500) {
                     logger.info(`[ExternalPlayer] Still waiting... readyState: ${video.readyState}, currentTime: ${video.currentTime}, elapsed: ${(elapsed/1000).toFixed(0)}s`);
                 }
             }
-        }, 100); // Check every 100ms
+        }, 500); // Increased from 100ms to reduce CPU usage
     });
 
     await waitForPlayback;
@@ -2045,16 +2839,6 @@ async function handleExternalPlayerInterception(): Promise<void> {
 
 // Icon SVGs
 
-function getThemeIcon(): string {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon">
-        <path d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c1.38 0 2.5-1.12 2.5-2.5 0-.61-.23-1.2-.64-1.67-.08-.1-.13-.21-.13-.33 0-.28.22-.5.5-.5H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9zM5.5 12c-.83 0-1.5-.67-1.5-1.5S4.67 9 5.5 9 7 9.67 7 10.5 6.33 12 5.5 12zm3-4C7.67 8 7 7.33 7 6.5S7.67 5 8.5 5s1.5.67 1.5 1.5S9.33 8 8.5 8zm7 0c-.83 0-1.5-.67-1.5-1.5S14.67 5 15.5 5s1.5.67 1.5 1.5S16.33 8 15.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S17.67 9 18.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="currentcolor"></path></svg>`;
-}
-
-function getPluginIcon(): string {
-    return `<svg icon="addons-outline" class="icon" viewBox="0 0 512 512" style="fill: currentcolor;">
-        <path d="M413.7 246.1H386c-0.53-0.01-1.03-0.23-1.4-0.6-0.37-0.37-0.59-0.87-0.6-1.4v-77.2a38.94 38.94 0 0 0-11.4-27.5 38.94 38.94 0 0 0-27.5-11.4h-77.2c-0.53-0.01-1.03-0.23-1.4-0.6-0.37-0.37-0.59-0.87-0.6-1.4v-27.7c0-27.1-21.5-49.9-48.6-50.3-6.57-0.1-13.09 1.09-19.2 3.5a49.616 49.616 0 0 0-16.4 10.7 49.823 49.823 0 0 0-11 16.2 48.894 48.894 0 0 0-3.9 19.2v28.5c-0.01 0.53-0.23 1.03-0.6 1.4-0.37 0.37-0.87 0.59-1.4 0.6h-77.2c-10.5 0-20.57 4.17-28 11.6a39.594 39.594 0 0 0-11.6 28v70.4c0.01 0.53 0.23 1.03 0.6 1.4 0.37 0.37 0.87 0.59 1.4 0.6h26.9c29.4 0 53.7 25.5 54.1 54.8 0.4 29.9-23.5 57.2-53.3 57.2H50c-0.53 0.01-1.03 0.23-1.4 0.6-0.37 0.37-0.59 0.87-0.6 1.4v70.4c0 10.5 4.17 20.57 11.6 28s17.5 11.6 28 11.6h70.4c0.53-0.01 1.03-0.23 1.4-0.6 0.37-0.37 0.59-0.87 0.6-1.4V441.2c0-30.3 24.8-56.4 55-57.1 30.1-0.7 57 20.3 57 50.3v27.7c0.01 0.53 0.23 1.03 0.6 1.4 0.37 0.37 0.87 0.59 1.4 0.6h71.1a38.94 38.94 0 0 0 27.5-11.4 38.958 38.958 0 0 0 11.4-27.5v-78c0.01-0.53 0.23-1.03 0.6-1.4 0.37-0.37 0.87-0.59 1.4-0.6h28.5c27.6 0 49.5-22.7 49.5-50.4s-23.2-48.7-50.3-48.7Z" style="stroke:currentcolor;stroke-linecap:round;stroke-linejoin:round;stroke-width:32;fill: currentColor;"></path></svg>`;
-}
-
 function getAboutIcon(): string {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon">
         <g><path fill="none" d="M0 0h24v24H0z"></path>
@@ -2062,95 +2846,154 @@ function getAboutIcon(): string {
 }
 
 function injectPerformanceCSS(): void {
-    // Main performance CSS is now in the theme file (liquid-glass.theme.css)
-    // This function only injects minimal scroll state CSS for themes that don't have it
-    // and sets up the scroll state detection
+    // Minimal - just disable smooth scroll behavior
     const style = document.createElement('style');
     style.id = 'enhanced-scroll-state-css';
     style.textContent = `
-        /* Minimal scroll state CSS - main performance CSS is in theme file */
-        /* This ensures scroll detection works even with non-glass themes */
-
-        /* Fallback scroll optimizations for non-themed pages */
-        html {
-            scroll-behavior: smooth;
-        }
-
-        /* Base GPU acceleration fallback */
-        [class*="meta-items-container"],
-        [class*="board-content-container"] {
-            transform: translate3d(0, 0, 0);
-            -webkit-overflow-scrolling: touch;
-        }
-
-        /* Scroll state class definitions (theme CSS uses these) */
-        body.scrolling-active,
-        body.performance-mode {
-            /* These classes trigger theme-specific optimizations */
-        }
+        html { scroll-behavior: auto !important; }
     `;
     document.head.appendChild(style);
-
-    // Add scroll state detection for dynamic optimizations
-    setupScrollStateDetection();
-
-    logger.info("Scroll state detection CSS injected");
+    logger.info("Minimal performance CSS injected");
 }
 
 // Detect active scrolling to apply performance optimizations
-function setupScrollStateDetection(): void {
+// @ts-ignore: Intentionally unused, kept for future use
+function _setupScrollStateDetection(): void {
     let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
-    let rafId: number | null = null;
     let isScrolling = false;
-    let lastScrollTime = 0;
-    const SCROLL_DEBOUNCE = 16; // One frame at 60Hz, optimized for 120Hz ProMotion
+
+    // Short debounce for responsive feel (100ms)
+    const SCROLL_END_DELAY = 100;
 
     // Pre-cache classList references for micro-optimization
     const bodyClassList = document.body.classList;
     const htmlClassList = document.documentElement.classList;
 
-    // RAF-batched scroll handler for smoothest performance
+    // Throttled scroll handler - fires at most once per frame
+    let ticking = false;
     const handleScroll = () => {
-        const now = performance.now();
-        lastScrollTime = now;
+        // Throttle to one update per animation frame
+        if (ticking) return;
+        ticking = true;
 
-        // Immediate class addition on first scroll (no RAF delay)
-        if (!isScrolling) {
-            isScrolling = true;
-            bodyClassList.add('scrolling-active');
-            htmlClassList.add('performance-mode');
-            // NOTE: Do NOT pause MutationObservers - this prevents content from rendering during scroll
-            // CSS optimizations alone are sufficient for scroll performance
-        }
+        requestAnimationFrame(() => {
+            ticking = false;
 
-        // Clear previous timeout
-        if (scrollTimeout) {
-            clearTimeout(scrollTimeout);
-        }
+            // Add scrolling class on first scroll event
+            if (!isScrolling) {
+                isScrolling = true;
+                bodyClassList.add('scrolling-active');
+                htmlClassList.add('performance-mode');
+            }
 
-        // RAF-based class removal for smooth transition back
-        scrollTimeout = setTimeout(() => {
-            if (rafId) cancelAnimationFrame(rafId);
-            rafId = requestAnimationFrame(() => {
-                if (performance.now() - lastScrollTime >= SCROLL_DEBOUNCE) {
-                    isScrolling = false;
-                    bodyClassList.remove('scrolling-active');
-                    htmlClassList.remove('performance-mode');
-                }
-            });
-        }, SCROLL_DEBOUNCE);
+            // Clear previous timeout
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+
+            // Set timeout to detect scroll end
+            scrollTimeout = setTimeout(() => {
+                isScrolling = false;
+                bodyClassList.remove('scrolling-active');
+                htmlClassList.remove('performance-mode');
+            }, SCROLL_END_DELAY);
+        });
     };
 
     // Use capture phase and passive for best performance
+    // Passive means we can't call preventDefault, but we don't need to
     document.addEventListener('scroll', handleScroll, { capture: true, passive: true });
 
-    // Also handle wheel events for immediate response
+    // Handle wheel events for immediate response (before actual scroll)
     document.addEventListener('wheel', handleScroll, { passive: true });
 
     // Handle touch scrolling
     document.addEventListener('touchmove', handleScroll, { passive: true });
 
-    logger.info("Scroll state detection initialized (16ms RAF-based, observers remain active)");
+    logger.info("Scroll state detection initialized (100ms debounce, RAF-throttled)");
+}
+
+// ============================================
+// HOVER INTENT SYSTEM
+// Delays expensive hover operations until user actually intends to hover
+// Cancels immediately on mouse leave to prevent wasted work
+// NOTE: Currently disabled, kept for future use
+// ============================================
+// @ts-ignore: Intentionally unused, kept for future implementation
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _setupHoverIntent(): void {
+    const HOVER_INTENT_DELAY = 200; // ms before triggering expensive hover effects
+    const hoverTimers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
+    const hoveredElements = new WeakSet<Element>();
+
+    // Delegate hover detection to document for efficiency
+    document.addEventListener('mouseover', (e) => {
+        const target = e.target as Element;
+        if (!target) return;
+
+        // Find the closest meta-item-container (poster card)
+        const posterCard = target.closest('[class*="meta-item-container"]');
+        if (!posterCard) return;
+
+        // Don't process if already hovered
+        if (hoveredElements.has(posterCard)) return;
+
+        // Cancel any existing timer for this element
+        const existingTimer = hoverTimers.get(posterCard);
+        if (existingTimer) {
+            clearTimeout(existingTimer);
+        }
+
+        // Set a delayed timer for hover intent
+        const timer = setTimeout(() => {
+            // Only apply hover effect if mouse is still over the element
+            if (posterCard.matches(':hover')) {
+                hoveredElements.add(posterCard);
+                posterCard.classList.add('hover-intent-active');
+            }
+        }, HOVER_INTENT_DELAY);
+
+        hoverTimers.set(posterCard, timer);
+    }, { passive: true });
+
+    document.addEventListener('mouseout', (e) => {
+        const target = e.target as Element;
+        if (!target) return;
+
+        const posterCard = target.closest('[class*="meta-item-container"]');
+        if (!posterCard) return;
+
+        // Immediately cancel the hover intent timer
+        const timer = hoverTimers.get(posterCard);
+        if (timer) {
+            clearTimeout(timer);
+            hoverTimers.delete(posterCard);
+        }
+
+        // Remove hover state immediately (no delay on leave)
+        hoveredElements.delete(posterCard);
+        posterCard.classList.remove('hover-intent-active');
+    }, { passive: true });
+
+    // Add CSS for hover-intent-active state
+    const hoverIntentStyle = document.createElement('style');
+    hoverIntentStyle.id = 'hover-intent-css';
+    hoverIntentStyle.textContent = `
+        /* Only apply expensive effects after hover intent confirmed */
+        [class*="meta-item-container"].hover-intent-active [class*="poster-container"] {
+            transform: translateZ(0) scale(1.03) !important;
+            transition-delay: 0ms !important;
+        }
+
+        /* Trailer/preview loading only starts after hover intent */
+        [class*="meta-item-container"]:not(.hover-intent-active) [class*="preview"],
+        [class*="meta-item-container"]:not(.hover-intent-active) [class*="trailer"] {
+            display: none !important;
+        }
+    `;
+    document.head.appendChild(hoverIntentStyle);
+
+    logger.info("Hover intent system initialized (200ms delay, instant cancel)");
 }
 
 // Global flag to track if we're currently handling external player
@@ -2248,6 +3091,646 @@ async function saveCurrentStreamInfo(): Promise<void> {
         logger.info(`[QuickResume] Saved stream for ${storageKey}: hash=${streamHash}`);
     } catch (err) {
         logger.warn(`[QuickResume] Error saving stream info: ${err}`);
+    }
+}
+
+/**
+ * Party Video Sync System
+ * Handles real-time video synchronization between party members
+ */
+let lastSyncedStreamUrl: string | null = null;
+let partyVideoListenersActive = false;
+let partyVideoElement: HTMLVideoElement | null = null;
+let isRemoteAction = false; // Flag to prevent feedback loops
+
+// Video event handlers for party sync
+// All party members can control playback (bidirectional sync)
+function onPartyVideoPlay(): void {
+    if (isRemoteAction || !partyService.connected) return;
+    logger.info('[Party] Video played - broadcasting');
+    partyService.broadcastMemberStateChange(partyVideoElement!, true);
+}
+
+function onPartyVideoPause(): void {
+    if (isRemoteAction || !partyService.connected) return;
+    logger.info('[Party] Video paused - broadcasting');
+    partyService.broadcastMemberStateChange(partyVideoElement!, true);
+}
+
+function onPartyVideoSeeked(): void {
+    if (isRemoteAction || !partyService.connected) return;
+    logger.info('[Party] Video seeked - broadcasting');
+    partyService.broadcastMemberStateChange(partyVideoElement!, true);
+}
+
+function onPartyVideoRateChange(): void {
+    if (isRemoteAction || !partyService.connected) return;
+    logger.info('[Party] Playback rate changed - broadcasting');
+    partyService.broadcastMemberStateChange(partyVideoElement!, false);
+}
+
+/**
+ * Initialize party video sync when entering player
+ */
+function initPartyVideoSync(): void {
+    if (!partyService.connected || !partyService.room) {
+        logger.info('[Party] Not in party, skipping video sync init');
+        removeFloatingPartyChatIcon();
+        return;
+    }
+
+    // Show floating chat icon for all party members
+    createFloatingPartyChatIcon();
+
+    // Wait for video element
+    const checkForVideo = setInterval(() => {
+        const video = document.querySelector('video') as HTMLVideoElement;
+        if (video) {
+            clearInterval(checkForVideo);
+            setupPartyVideoListeners(video);
+        }
+    }, 500); // Increased from 200ms to reduce CPU usage
+
+    // Stop checking after 10 seconds
+    setTimeout(() => clearInterval(checkForVideo), 10000);
+}
+
+/**
+ * Setup video event listeners for party sync
+ */
+function setupPartyVideoListeners(video: HTMLVideoElement): void {
+    if (partyVideoListenersActive) return;
+
+    partyVideoElement = video;
+    partyVideoListenersActive = true;
+
+    // Ensure isRemoteAction starts as false when setting up new video
+    isRemoteAction = false;
+
+    logger.info('[Party] Setting up video sync listeners, isHost:', partyService.isHost);
+    console.log('[Party] isRemoteAction reset to false, ready for new video');
+
+    // Add event listeners for host to broadcast changes
+    video.addEventListener('play', onPartyVideoPlay);
+    video.addEventListener('pause', onPartyVideoPause);
+    video.addEventListener('seeked', onPartyVideoSeeked);
+    video.addEventListener('ratechange', onPartyVideoRateChange);
+
+    // Start periodic sync if host
+    if (partyService.isHost) {
+        partyService.startSync(() => partyVideoElement);
+        logger.info('[Party] Started periodic sync as host');
+    }
+
+    logger.info('[Party] Video sync listeners active');
+}
+
+/**
+ * Cleanup party video sync when leaving player
+ */
+function cleanupPartyVideoSync(): void {
+    if (!partyVideoListenersActive || !partyVideoElement) return;
+
+    logger.info('[Party] Cleaning up video sync listeners');
+
+    partyVideoElement.removeEventListener('play', onPartyVideoPlay);
+    partyVideoElement.removeEventListener('pause', onPartyVideoPause);
+    partyVideoElement.removeEventListener('seeked', onPartyVideoSeeked);
+    partyVideoElement.removeEventListener('ratechange', onPartyVideoRateChange);
+
+    partyService.stopSync();
+    partyVideoElement = null;
+    partyVideoListenersActive = false;
+
+    // CRITICAL: Reset the remote action flag to prevent it from staying true
+    // when switching to a new video. If this flag stays true, the host won't
+    // be able to broadcast events, causing sync to break on subsequent videos.
+    isRemoteAction = false;
+    logger.info('[Party] Reset isRemoteAction flag');
+
+    // Reset stream sync state to allow syncing to new videos
+    // Don't clear lastSyncedStreamUrl here - keep it for comparison
+    logger.info('[Party] Video sync cleanup complete');
+
+    // Remove floating chat icon when leaving player
+    removeFloatingPartyChatIcon();
+}
+
+/**
+ * Setup party event listeners (called once on startup)
+ */
+function setupPartyListeners(): void {
+    // Listen for commands from host
+    partyService.on('command', ({ latency, command, data }: { latency: number; command: string; data: any }) => {
+        logger.info('[Party] Received command:', command);
+
+        // Handle stream update commands (navigate to same video)
+        if (command === 'updateStream') {
+            const streamUrl = data?.url;
+
+            // Always sync to host's stream unless we're already there
+            if (streamUrl && streamUrl !== location.hash) {
+                logger.info('[Party] Host changed stream - syncing to:', streamUrl);
+                console.log('[Party] Previous stream:', lastSyncedStreamUrl);
+                console.log('[Party] New stream:', streamUrl);
+                console.log('[Party] Current location:', location.hash);
+
+                lastSyncedStreamUrl = streamUrl;
+                location.hash = streamUrl;
+            } else if (streamUrl === location.hash) {
+                logger.info('[Party] Already at host stream:', streamUrl);
+            }
+            return;
+        }
+
+        // Handle video state sync commands (play/pause/seek)
+        if (command === 'state') {
+            const video = document.querySelector('video') as HTMLVideoElement;
+            if (!video || !partyService.autoSync) return;
+
+            // Set flag to prevent feedback loop
+            // NOTE: We process commands regardless of host status. The server ensures
+            // only hosts can send commands, so we trust all incoming commands.
+            isRemoteAction = true;
+
+            try {
+                const stateData = data as { time: number; paused: boolean; playbackSpeed?: number; force?: boolean };
+
+                // Calculate latency compensation
+                const latencySeconds = (latency + partyService.latency) / 1000;
+                const targetTime = stateData.time + latencySeconds;
+                const timeDiff = Math.abs(video.currentTime - targetTime);
+
+                // Sync time if difference is significant or forced
+                // Use 2.5 second tolerance to reduce buffering on different connection speeds
+                const maxDelay = 2.5 * (stateData.playbackSpeed || 1);
+                if (timeDiff > maxDelay || stateData.force) {
+                    logger.info('[Party] Syncing time:', targetTime, 'diff:', timeDiff);
+                    video.currentTime = targetTime;
+                }
+
+                // Sync play/pause state
+                if (stateData.paused !== video.paused) {
+                    if (stateData.paused) {
+                        logger.info('[Party] Syncing: pause');
+                        video.pause();
+                    } else {
+                        logger.info('[Party] Syncing: play');
+                        video.play().catch(() => {});
+                    }
+                }
+
+                // Sync playback speed
+                if (stateData.playbackSpeed && video.playbackRate !== stateData.playbackSpeed) {
+                    video.playbackRate = stateData.playbackSpeed;
+                }
+            } finally {
+                // Reset flag after a short delay to allow events to fire
+                setTimeout(() => { isRemoteAction = false; }, 100);
+            }
+        }
+    });
+
+    // Listen for chat messages to show overlay in player
+    partyService.on('message', (msg: { senderId: string; senderName: string; text: string }) => {
+        if (msg.senderId === 'system') return;
+
+        // Show chat overlay if in player
+        if (location.hash.includes('#/player')) {
+            showPartyChatOverlay(msg.senderName, msg.text);
+        }
+    });
+
+    // Update title bar when room state changes
+    partyService.on('room', () => {
+        updateTitleBarPartyState();
+        updateNavPartyButtonState();
+        updateFloatingChatIconCount();
+        // Also try to show floating icon if we're in player (for late room updates)
+        if (location.hash.includes('#/player')) {
+            createFloatingPartyChatIcon();
+        }
+    });
+
+    partyService.on('disconnected', () => {
+        updateTitleBarPartyState();
+        updateNavPartyButtonState();
+        removeFloatingPartyChatIcon();
+        // Reset stream sync state so next party session works correctly
+        lastSyncedStreamUrl = null;
+        logger.info('[Party] Reset lastSyncedStreamUrl on disconnect');
+    });
+
+    // When joining a new party, reset sync state
+    partyService.on('connected', () => {
+        lastSyncedStreamUrl = null;
+        logger.info('[Party] Reset lastSyncedStreamUrl on new connection');
+        // If already in player, initialize video sync for new party
+        if (location.hash.includes('#/player')) {
+            initPartyVideoSync();
+        }
+    });
+
+    // Expose partyService to window for plugins
+    (window as any).partyService = partyService;
+
+    // Expose openPartyPopover to window for plugins
+    (window as any).openPartyPopover = () => {
+        import("./components/party-popover/partyPopover").then(({ openPartyPopover }) => {
+            openPartyPopover();
+        });
+    };
+
+    // Listen for custom event from plugins
+    window.addEventListener('streamgo:openPartyPopover', () => {
+        import("./components/party-popover/partyPopover").then(({ openPartyPopover }) => {
+            openPartyPopover();
+        });
+    });
+
+    logger.info('[Party] Party listeners initialized');
+}
+
+/**
+ * Show chat message overlay in player
+ */
+function showPartyChatOverlay(senderName: string, text: string): void {
+    // Create or reuse container
+    let container = document.getElementById('party-chat-overlay-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'party-chat-overlay-container';
+        container.style.cssText = `
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            z-index: 999999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 300px;
+            pointer-events: none;
+        `;
+        document.body.appendChild(container);
+    }
+
+    // Create message element
+    const msgEl = document.createElement('div');
+    msgEl.className = 'party-chat-overlay-msg';
+    msgEl.style.cssText = `
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(10px);
+        padding: 8px 12px;
+        border-radius: 8px;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 13px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        animation: partyChatFadeIn 0.3s ease-out;
+        opacity: 0.85;
+    `;
+    msgEl.innerHTML = `<strong style="color: #10b981;">${escapeHtml(senderName)}:</strong> ${escapeHtml(text)}`;
+
+    // Add animation styles if not present
+    if (!document.getElementById('party-chat-overlay-styles')) {
+        const style = document.createElement('style');
+        style.id = 'party-chat-overlay-styles';
+        style.textContent = `
+            @keyframes partyChatFadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 0.85; transform: translateY(0); }
+            }
+            @keyframes partyChatFadeOut {
+                from { opacity: 0.85; transform: translateY(0); }
+                to { opacity: 0; transform: translateY(-10px); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    container.appendChild(msgEl);
+
+    // Remove after 5 seconds
+    setTimeout(() => {
+        msgEl.style.animation = 'partyChatFadeOut 0.3s ease-out forwards';
+        setTimeout(() => {
+            msgEl.remove();
+            // Clean up container if empty to avoid ghost element
+            const containerEl = document.getElementById('party-chat-overlay-container');
+            if (containerEl && containerEl.children.length === 0) {
+                containerEl.remove();
+            }
+        }, 300);
+    }, 5000);
+
+    // Keep only last 3 messages
+    while (container.children.length > 3) {
+        container.firstChild?.remove();
+    }
+}
+
+/**
+ * Helper to escape HTML
+ */
+function escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Track mouse activity for floating icon visibility
+let partyIconMouseTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function setPartyIconActive(active: boolean): void {
+    const wrapper = document.getElementById('party-floating-chat-icon');
+    if (wrapper) {
+        if (active) {
+            wrapper.classList.add('mouse-active');
+        } else {
+            wrapper.classList.remove('mouse-active');
+        }
+    }
+}
+
+function handlePartyIconMouseMove(): void {
+    if (!document.getElementById('party-floating-chat-icon')) return;
+
+    setPartyIconActive(true);
+
+    if (partyIconMouseTimeout) {
+        clearTimeout(partyIconMouseTimeout);
+    }
+
+    // Hide after 3 seconds of no mouse movement (matches video controls)
+    partyIconMouseTimeout = setTimeout(() => {
+        setPartyIconActive(false);
+    }, 3000);
+}
+
+/**
+ * Create floating party chat icon for player view
+ * Shows for ALL party members, not just host
+ * Visible when mouse active, fades when inactive
+ */
+function createFloatingPartyChatIcon(): void {
+    // Only show in player and when in party
+    if (!location.hash.includes('#/player') || !partyService.connected || !partyService.room) {
+        removeFloatingPartyChatIcon();
+        return;
+    }
+
+    // Already exists
+    if (document.getElementById('party-floating-chat-icon')) return;
+
+    // Create wrapper for proper badge positioning
+    const wrapper = document.createElement('div');
+    wrapper.id = 'party-floating-chat-icon';
+    wrapper.className = 'mouse-active'; // Start visible
+    wrapper.title = 'Party Chat (Press C)';
+    wrapper.style.cssText = `
+        position: fixed;
+        bottom: 100px;
+        right: 20px;
+        z-index: 999998;
+        cursor: pointer;
+    `;
+
+    // Create the icon container
+    const icon = document.createElement('div');
+    icon.className = 'party-float-icon-inner';
+    icon.innerHTML = `
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+        </svg>
+    `;
+
+    // Create the badge (outside the icon container)
+    const badge = document.createElement('span');
+    badge.className = 'party-chat-member-count';
+    badge.textContent = partyService.room.members.length.toString();
+
+    wrapper.appendChild(icon);
+    wrapper.appendChild(badge);
+
+    // Add styles
+    if (!document.getElementById('party-floating-icon-styles')) {
+        const style = document.createElement('style');
+        style.id = 'party-floating-icon-styles';
+        style.textContent = `
+            /* Inactive state (mouse not moving) - very subtle */
+            #party-floating-chat-icon .party-float-icon-inner {
+                width: 40px;
+                height: 40px;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: rgba(255, 255, 255, 0.15);
+                transition: all 0.4s ease;
+            }
+            #party-floating-chat-icon .party-chat-member-count {
+                position: absolute;
+                top: -2px;
+                right: -2px;
+                background: rgba(255, 255, 255, 0.1);
+                color: rgba(255, 255, 255, 0.3);
+                font-size: 9px;
+                font-weight: 600;
+                min-width: 16px;
+                height: 16px;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0 3px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                transition: all 0.4s ease;
+            }
+
+            /* Active state (mouse moving) - fully visible */
+            #party-floating-chat-icon.mouse-active .party-float-icon-inner {
+                background: rgba(255, 255, 255, 0.12);
+                color: rgba(255, 255, 255, 0.9);
+            }
+            #party-floating-chat-icon.mouse-active .party-chat-member-count {
+                background: rgba(255, 255, 255, 0.25);
+                color: rgba(255, 255, 255, 0.9);
+            }
+
+            /* Hover state - highlighted */
+            #party-floating-chat-icon:hover .party-float-icon-inner {
+                background: rgba(255, 255, 255, 0.2);
+                color: white;
+                transform: scale(1.05);
+            }
+            #party-floating-chat-icon:hover .party-chat-member-count {
+                background: rgba(255, 255, 255, 0.35);
+                color: rgba(255, 255, 255, 0.9);
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    wrapper.addEventListener('click', toggleQuickChat);
+    document.body.appendChild(wrapper);
+
+    // Add mouse move listener for visibility
+    document.addEventListener('mousemove', handlePartyIconMouseMove);
+
+    // Start the timeout to fade out after 3 seconds
+    partyIconMouseTimeout = setTimeout(() => {
+        setPartyIconActive(false);
+    }, 3000);
+
+    logger.info('[Party] Created floating chat icon');
+}
+
+/**
+ * Remove floating party chat icon
+ */
+function removeFloatingPartyChatIcon(): void {
+    const icon = document.getElementById('party-floating-chat-icon');
+    if (icon) {
+        icon.remove();
+        // Clean up mouse listener
+        document.removeEventListener('mousemove', handlePartyIconMouseMove);
+        if (partyIconMouseTimeout) {
+            clearTimeout(partyIconMouseTimeout);
+            partyIconMouseTimeout = null;
+        }
+        logger.info('[Party] Removed floating chat icon');
+    }
+}
+
+/**
+ * Update floating chat icon member count
+ */
+function updateFloatingChatIconCount(): void {
+    const countEl = document.querySelector('#party-floating-chat-icon .party-chat-member-count');
+    if (countEl && partyService.room) {
+        countEl.textContent = partyService.room.members.length.toString();
+    }
+}
+
+/**
+ * Quick chat panel - press C key in player to toggle
+ */
+let quickChatOpen = false;
+
+function toggleQuickChat(): void {
+    if (!partyService.connected || !partyService.room) return;
+    quickChatOpen ? closeQuickChat() : openQuickChat();
+}
+
+function openQuickChat(): void {
+    if (document.getElementById('party-quick-chat')) return;
+    quickChatOpen = true;
+
+    const panel = document.createElement('div');
+    panel.id = 'party-quick-chat';
+    panel.style.cssText = `position: fixed; bottom: 80px; right: 20px; width: 320px; max-height: 300px; background: rgba(15, 15, 17, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; z-index: 999999; display: flex; flex-direction: column; animation: quickChatSlideIn 0.2s ease-out; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);`;
+    panel.innerHTML = `<div style="padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: space-between;"><span style="color: #10b981; font-weight: 600; font-size: 13px;">Party Chat (${partyService.room?.members.length || 0})</span><span style="color: rgba(255,255,255,0.4); font-size: 11px;">C or Esc to close</span></div><div id="party-quick-chat-messages" style="flex: 1; overflow-y: auto; padding: 10px 14px; max-height: 180px; display: flex; flex-direction: column; gap: 6px; scrollbar-width: none;"></div><div style="padding: 10px 14px; border-top: 1px solid rgba(255,255,255,0.1);"><input type="text" id="party-quick-chat-input" placeholder="Type a message..." maxlength="500" style="width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; font-size: 13px; outline: none; box-sizing: border-box;" /></div>`;
+
+    if (!document.getElementById('party-quick-chat-styles')) {
+        const style = document.createElement('style');
+        style.id = 'party-quick-chat-styles';
+        style.textContent = `@keyframes quickChatSlideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } } @keyframes quickChatSlideOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(20px); } } #party-quick-chat-messages::-webkit-scrollbar { display: none; } #party-quick-chat-input:focus { border-color: #10b981; background: rgba(255,255,255,0.1); }`;
+        document.head.appendChild(style);
+    }
+    document.body.appendChild(panel);
+
+    const messagesContainer = document.getElementById('party-quick-chat-messages');
+    if (messagesContainer) {
+        partyService.messages.slice(-10).forEach(msg => {
+            const msgEl = document.createElement('div');
+            msgEl.style.cssText = 'font-size: 12px; color: rgba(255,255,255,0.9);';
+            if (msg.senderId === 'system') { msgEl.style.cssText += 'color: rgba(255,255,255,0.5); font-style: italic; text-align: center;'; msgEl.textContent = msg.text; }
+            else { msgEl.innerHTML = `<strong style="color: ${msg.isHost ? '#fbbf24' : '#10b981'};">${escapeHtml(msg.senderName)}:</strong> ${escapeHtml(msg.text)}`; }
+            messagesContainer.appendChild(msgEl);
+        });
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    const input = document.getElementById('party-quick-chat-input') as HTMLInputElement;
+    if (input) {
+        setTimeout(() => input.focus(), 50);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && input.value.trim()) { partyService.sendChatMessage(input.value.trim()); input.value = ''; } else if (e.key === 'Escape') { closeQuickChat(); } e.stopPropagation(); });
+    }
+
+    const messageHandler = (msg: { senderName: string; text: string; senderId: string; isHost: boolean }) => {
+        const container = document.getElementById('party-quick-chat-messages');
+        if (container) {
+            const msgEl = document.createElement('div');
+            msgEl.style.cssText = 'font-size: 12px; color: rgba(255,255,255,0.9);';
+            if (msg.senderId === 'system') { msgEl.style.cssText += 'color: rgba(255,255,255,0.5); font-style: italic; text-align: center;'; msgEl.textContent = msg.text; }
+            else { msgEl.innerHTML = `<strong style="color: ${msg.isHost ? '#fbbf24' : '#10b981'};">${escapeHtml(msg.senderName)}:</strong> ${escapeHtml(msg.text)}`; }
+            container.appendChild(msgEl);
+            container.scrollTop = container.scrollHeight;
+        }
+    };
+    partyService.on('message', messageHandler);
+    (panel as any)._messageHandler = messageHandler;
+}
+
+function closeQuickChat(): void {
+    const panel = document.getElementById('party-quick-chat');
+    if (panel) {
+        if ((panel as any)._messageHandler) partyService.off('message', (panel as any)._messageHandler);
+        panel.style.animation = 'quickChatSlideOut 0.2s ease-out forwards';
+        setTimeout(() => panel.remove(), 200);
+    }
+    quickChatOpen = false;
+}
+
+// C key shortcut for quick chat
+document.addEventListener('keydown', (e) => {
+    if (!location.hash.includes('#/player')) return;
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) return;
+    if (e.key === 'c' || e.key === 'C') { e.preventDefault(); toggleQuickChat(); }
+    if (e.key === 'Escape' && quickChatOpen) closeQuickChat();
+});
+
+/**
+ * Sync current stream to party members
+ * Only the party owner can trigger stream sync
+ */
+function syncStreamToParty(): void {
+    try {
+        if (!partyService.connected || !partyService.room) {
+            logger.info('[Party] Not syncing stream - not in party');
+            return;
+        }
+
+        if (!partyService.isHost) {
+            logger.info('[Party] Not syncing stream - not a host');
+            return;
+        }
+
+        logger.info('[Party] Host navigated to player - syncing stream...');
+        console.log('[Party] Broadcasting stream to', partyService.room.members.length, 'members');
+
+        const hash = location.hash;
+        const playerMatch = hash.match(/#\/player\/([^/]+)\/([^/]+)(?:\/(.+))?/);
+
+        if (!playerMatch) {
+            logger.warn('[Party] Could not parse player URL for sync:', hash);
+            return;
+        }
+
+        const [, videoId, streamHash, episodeId] = playerMatch;
+
+        partyService.broadcastCommand('updateStream', {
+            url: hash,
+            videoId,
+            streamHash,
+            episodeId: episodeId || null
+        });
+
+        logger.info('[Party] Stream update broadcast to party:', hash);
+        console.log('[Party] Broadcast complete - participants should navigate to:', hash);
+    } catch (error) {
+        logger.error('[Party] Error syncing stream:', error);
     }
 }
 
@@ -2369,79 +3852,6 @@ function setupGlobalVideoInterception(): void {
 }
 
 // Inject CSS styles for collapsible sections
-function injectCollapsibleStyles(): void {
-    const existingStyle = document.getElementById('enhanced-collapsible-css');
-    if (existingStyle) return;
-
-    const style = document.createElement('style');
-    style.id = 'enhanced-collapsible-css';
-    style.textContent = `
-        .enhanced-collapsible {
-            margin: 1rem 0;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            overflow: hidden;
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        .enhanced-collapsible-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            cursor: pointer;
-            background: rgba(255, 255, 255, 0.05);
-            transition: background-color 0.2s ease;
-            user-select: none;
-        }
-
-        .enhanced-collapsible-header:hover {
-            background: rgba(255, 255, 255, 0.08);
-        }
-
-        .enhanced-collapsible-title {
-            font-size: 14px;
-            font-weight: 500;
-            color: white;
-        }
-
-        .enhanced-collapsible-icon {
-            transition: transform 0.3s ease;
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .enhanced-collapsible.collapsed .enhanced-collapsible-icon {
-            transform: rotate(-90deg);
-        }
-
-        .enhanced-collapsible-content {
-            padding: 16px;
-            max-height: 2000px;
-            overflow: hidden;
-            transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
-            opacity: 1;
-        }
-
-        .enhanced-collapsible.collapsed .enhanced-collapsible-content {
-            max-height: 0;
-            padding-top: 0;
-            padding-bottom: 0;
-            opacity: 0;
-        }
-
-        /* Style adjustments for nested options */
-        .enhanced-collapsible .option-vFOAS {
-            margin-bottom: 0.5rem;
-        }
-
-        .enhanced-collapsible .option-vFOAS:last-of-type {
-            margin-bottom: 0;
-        }
-    `;
-    document.head.appendChild(style);
-    logger.info("Collapsible section styles injected");
-}
-
 function injectAboutSectionStyles(): void {
     const existingStyle = document.getElementById('enhanced-about-css');
     if (existingStyle) return;
@@ -2450,7 +3860,7 @@ function injectAboutSectionStyles(): void {
     style.id = 'enhanced-about-css';
     style.textContent = `
         .about-link {
-            color: #7b5bf5 !important;
+            color: #10b981 !important;
             text-decoration: none;
             font-weight: 600;
             transition: color 0.2s ease;
@@ -2559,168 +3969,3 @@ function handlePlayButtonClick(e: MouseEvent): void {
 }
 
 // Create a collapsible plugin group section
-function createPluginGroupSection(title: string, description: string, groupId: string): HTMLElement {
-    const section = document.createElement('div');
-    section.className = 'enhanced-collapsible plugin-group';
-    section.id = groupId;
-
-    section.innerHTML = `
-        <div class="enhanced-collapsible-header" data-section="${groupId}">
-            <div class="enhanced-collapsible-title-container">
-                <span class="enhanced-collapsible-title">${title}</span>
-                <span class="enhanced-collapsible-subtitle">${description}</span>
-            </div>
-            <svg class="enhanced-collapsible-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-        </div>
-        <div class="enhanced-collapsible-content" id="${groupId}-content">
-        </div>
-    `;
-
-    return section;
-}
-
-// Flag to track if delegated handler is already set up
-let pluginGroupDelegatedHandlerSetup = false;
-
-// Setup delegated click handler for plugin group sections
-// Uses event delegation for reliable click handling regardless of when elements are added
-function setupPluginGroupHandlers(): void {
-    // Set up delegated event handler once (handles all current and future plugin group headers)
-    if (!pluginGroupDelegatedHandlerSetup) {
-        document.addEventListener('click', (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (!target) return;
-
-            // Check if clicked element is within a plugin group header
-            const header = target.closest('.plugin-group .enhanced-collapsible-header');
-            if (!header) return;
-
-            const collapsible = header.closest('.enhanced-collapsible');
-            if (collapsible) {
-                collapsible.classList.toggle('collapsed');
-
-                const section = header.getAttribute('data-section');
-                if (section) {
-                    const isCollapsed = collapsible.classList.contains('collapsed');
-                    localStorage.setItem(`plugin-group-${section}`, isCollapsed ? 'collapsed' : 'expanded');
-                }
-            }
-        });
-        pluginGroupDelegatedHandlerSetup = true;
-        logger.info('Plugin group delegated click handler initialized');
-    }
-
-    // Restore saved states for any plugin group headers currently in DOM
-    setTimeout(() => {
-        const headers = document.querySelectorAll('.plugin-group .enhanced-collapsible-header');
-
-        headers.forEach(header => {
-            // Skip if state already restored for this element
-            if (header.hasAttribute('data-plugin-group-state-restored')) return;
-            header.setAttribute('data-plugin-group-state-restored', 'true');
-
-            // Restore saved state (default to collapsed)
-            const section = header.getAttribute('data-section');
-            if (section) {
-                const savedState = localStorage.getItem(`plugin-group-${section}`);
-                const collapsible = header.closest('.enhanced-collapsible');
-                if (collapsible) {
-                    // Default to collapsed, only expand if explicitly saved as expanded
-                    if (savedState !== 'expanded') {
-                        collapsible.classList.add('collapsed');
-                    }
-                }
-            }
-        });
-
-        logger.info(`Plugin group state restored for ${headers.length} groups`);
-    }, TIMEOUTS.NAVIGATION_DEBOUNCE);
-}
-
-// Inject styles for plugin groups
-function injectPluginGroupStyles(): void {
-    const existingStyle = document.getElementById('enhanced-plugin-group-css');
-    if (existingStyle) return;
-
-    const style = document.createElement('style');
-    style.id = 'enhanced-plugin-group-css';
-    style.textContent = `
-        .plugin-group {
-            margin: 1rem 0;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 10px;
-            overflow: hidden;
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        .plugin-group .enhanced-collapsible-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 18px;
-            cursor: pointer;
-            background: rgba(255, 255, 255, 0.06);
-            transition: background-color 0.2s ease;
-            user-select: none;
-        }
-
-        .plugin-group .enhanced-collapsible-header:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .enhanced-collapsible-title-container {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .plugin-group .enhanced-collapsible-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: white;
-        }
-
-        .enhanced-collapsible-subtitle {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.5);
-            font-weight: 400;
-        }
-
-        .plugin-group .enhanced-collapsible-icon {
-            transition: transform 0.3s ease;
-            color: rgba(255, 255, 255, 0.6);
-            flex-shrink: 0;
-        }
-
-        .plugin-group.collapsed .enhanced-collapsible-icon {
-            transform: rotate(-90deg);
-        }
-
-        .plugin-group .enhanced-collapsible-content {
-            padding: 12px 16px;
-            max-height: 2000px;
-            overflow: hidden;
-            transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
-            opacity: 1;
-        }
-
-        .plugin-group.collapsed .enhanced-collapsible-content {
-            max-height: 0;
-            padding-top: 0;
-            padding-bottom: 0;
-            opacity: 0;
-        }
-
-        .plugin-group .addon-whmdO {
-            margin-bottom: 0.75rem;
-        }
-
-        .plugin-group .addon-whmdO:last-child {
-            margin-bottom: 0;
-        }
-    `;
-    document.head.appendChild(style);
-    logger.info("Plugin group styles injected");
-}

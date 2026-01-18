@@ -5,9 +5,9 @@ import { join, basename } from "path";
 import { getUpdateModalTemplate } from "../components/update-modal/updateModal";
 import { URLS } from "../constants";
 import https from "https";
-import { createWriteStream, unlinkSync, existsSync } from "fs";
+import { createWriteStream, unlinkSync, existsSync, writeFileSync, statSync } from "fs";
 import { promisify } from "util";
-import { execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 
 // Try to import app, but handle if we're in renderer process
 let app: typeof import("electron").app | undefined;
@@ -263,17 +263,21 @@ class Updater {
     }
 
     /**
-     * Download the installer file with progress tracking
+     * Download the installer file with progress tracking and integrity verification
      */
     public static async downloadUpdate(
         installerUrl: string,
         destPath: string,
-        onProgress: (progress: number, bytesDownloaded: number, totalBytes: number) => void
+        onProgress: (progress: number, bytesDownloaded: number, totalBytes: number) => void,
+        retryCount: number = 0
     ): Promise<void> {
+        const MAX_RETRIES = 3;
+
         return new Promise((resolve, reject) => {
             const file = createWriteStream(destPath);
             let resolved = false;
-            
+            let expectedBytes = 0;
+
             const cleanup = (error?: Error) => {
                 if (resolved) return;
                 file.close(() => {
@@ -295,7 +299,13 @@ class Updater {
                 cleanup(error);
             });
 
-            https.get(installerUrl, { headers: { "User-Agent": "StreamGo-Updater" } }, (res) => {
+            https.get(installerUrl, {
+                headers: {
+                    "User-Agent": "StreamGo-Updater",
+                    "Accept": "*/*"
+                },
+                timeout: 30000 // 30 second timeout
+            }, (res) => {
                 // Handle redirects
                 const redirectLocation = res.headers.location;
                 if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && redirectLocation) {
@@ -308,7 +318,7 @@ class Updater {
                             }
                         }
                         // Recursively follow redirect
-                        Updater.downloadUpdate(redirectLocation, destPath, onProgress)
+                        Updater.downloadUpdate(redirectLocation, destPath, onProgress, retryCount)
                             .then(() => {
                                 if (!resolved) {
                                     resolved = true;
@@ -330,13 +340,15 @@ class Updater {
                     return;
                 }
 
-                const totalBytes = parseInt(res.headers['content-length'] || '0', 10);
+                expectedBytes = parseInt(res.headers['content-length'] || '0', 10);
                 let bytesDownloaded = 0;
+
+                this.logger.info(`Starting download: expecting ${expectedBytes} bytes`);
 
                 res.on('data', (chunk: Buffer) => {
                     bytesDownloaded += chunk.length;
-                    const progress = totalBytes > 0 ? (bytesDownloaded / totalBytes) * 100 : 0;
-                    onProgress(progress, bytesDownloaded, totalBytes);
+                    const progress = expectedBytes > 0 ? (bytesDownloaded / expectedBytes) * 100 : 0;
+                    onProgress(progress, bytesDownloaded, expectedBytes);
                 });
 
                 res.pipe(file);
@@ -344,9 +356,76 @@ class Updater {
                 file.on('finish', () => {
                     file.close(() => {
                         if (!resolved) {
-                            resolved = true;
-                            this.logger.info(`Download complete: ${bytesDownloaded} bytes downloaded`);
-                            resolve();
+                            // Verify download integrity
+                            try {
+                                const actualSize = statSync(destPath).size;
+                                this.logger.info(`Download finished: ${actualSize} bytes written, expected ${expectedBytes} bytes`);
+
+                                if (expectedBytes > 0 && actualSize !== expectedBytes) {
+                                    // File size mismatch - corrupted download
+                                    this.logger.error(`File size mismatch: got ${actualSize}, expected ${expectedBytes}`);
+
+                                    if (retryCount < MAX_RETRIES) {
+                                        this.logger.info(`Retrying download (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+                                        // Clean up partial file
+                                        try {
+                                            unlinkSync(destPath);
+                                        } catch (err) {
+                                            // Ignore
+                                        }
+                                        // Retry download
+                                        Updater.downloadUpdate(installerUrl, destPath, onProgress, retryCount + 1)
+                                            .then(() => {
+                                                resolved = true;
+                                                resolve();
+                                            })
+                                            .catch((error) => {
+                                                resolved = true;
+                                                reject(error);
+                                            });
+                                        return;
+                                    } else {
+                                        resolved = true;
+                                        reject(new Error(`Download corrupted: file size is ${actualSize} bytes but expected ${expectedBytes} bytes. Please check your internet connection and try again.`));
+                                        return;
+                                    }
+                                }
+
+                                // Verify minimum file size (at least 1MB for installers)
+                                if (actualSize < 1024 * 1024) {
+                                    this.logger.error(`Downloaded file is suspiciously small: ${actualSize} bytes`);
+
+                                    if (retryCount < MAX_RETRIES) {
+                                        this.logger.info(`Retrying download (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+                                        try {
+                                            unlinkSync(destPath);
+                                        } catch (err) {
+                                            // Ignore
+                                        }
+                                        Updater.downloadUpdate(installerUrl, destPath, onProgress, retryCount + 1)
+                                            .then(() => {
+                                                resolved = true;
+                                                resolve();
+                                            })
+                                            .catch((error) => {
+                                                resolved = true;
+                                                reject(error);
+                                            });
+                                        return;
+                                    } else {
+                                        resolved = true;
+                                        reject(new Error(`Downloaded file is too small (${actualSize} bytes). Download may have failed.`));
+                                        return;
+                                    }
+                                }
+
+                                resolved = true;
+                                this.logger.info('Download verified successfully');
+                                resolve();
+                            } catch (error) {
+                                resolved = true;
+                                reject(new Error(`Failed to verify downloaded file: ${(error as Error).message}`));
+                            }
                         }
                     });
                 });
@@ -355,7 +434,27 @@ class Updater {
                     cleanup(error);
                 });
             }).on('error', (error: Error) => {
-                cleanup(error);
+                if (retryCount < MAX_RETRIES) {
+                    this.logger.info(`Network error, retrying download (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+                    cleanup();
+                    setTimeout(() => {
+                        Updater.downloadUpdate(installerUrl, destPath, onProgress, retryCount + 1)
+                            .then(() => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    resolve();
+                                }
+                            })
+                            .catch((err) => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    reject(err);
+                                }
+                            });
+                    }, 2000); // Wait 2 seconds before retry
+                } else {
+                    cleanup(error);
+                }
             });
         });
     }
@@ -368,61 +467,285 @@ class Updater {
 
         switch (platform) {
             case "win32": {
-                // NSIS installer silent mode with admin privileges
+                // NSIS installer - silent installation with auto-restart
                 this.logger.info(`Installing update on Windows: ${installerPath}`);
-                // Use Start-Process with -Wait to ensure installation completes
-                const ps = `$process = Start-Process -FilePath "${installerPath}" -ArgumentList '/S' -Verb RunAs -Wait -PassThru; if ($process.ExitCode -ne 0) { throw "Installation failed with exit code $($process.ExitCode)" }`;
-                await execFileAsync("powershell.exe", [
-                    "-ExecutionPolicy", "Bypass",
-                    "-NoProfile",
-                    "-Command", ps
-                ], {
-                    windowsHide: true,
-                });
-                this.logger.info("Windows installation completed successfully");
-                break;
+
+                try {
+                    if (!app) {
+                        throw new Error("App not available - cannot create update script");
+                    }
+
+                    // Create a batch file that will:
+                    // 1. Wait for this process to exit (using process ID)
+                    // 2. Launch the installer
+                    // 3. Delete itself
+                    const currentPid = process.pid;
+                    const batchContent = `@echo off
+REM StreamGo Update Helper
+echo Waiting for StreamGo to exit...
+:WAIT
+tasklist /FI "PID eq ${currentPid}" 2>NUL | find "${currentPid}" >NUL
+if %ERRORLEVEL% == 0 (
+    timeout /t 1 /nobreak >NUL
+    goto WAIT
+)
+
+echo Launching installer...
+start "" "${installerPath}" /S --force-run
+
+echo Cleaning up...
+del "%~f0"
+exit
+`;
+
+                    const batchPath = join(app.getPath("temp"), "streamgo-update.bat");
+                    writeFileSync(batchPath, batchContent, { encoding: 'utf8' });
+                    this.logger.info(`Created update batch file: ${batchPath}`);
+
+                    // Launch the batch file in a detached, hidden window
+                    const batchProcess = spawn("cmd.exe", ["/c", batchPath], {
+                        detached: true,
+                        stdio: 'ignore',
+                        windowsHide: true,
+                    });
+
+                    // Unref so the child can continue after parent exits
+                    batchProcess.unref();
+
+                    this.logger.info("Update batch script launched, app will now exit");
+
+                    // Give batch file time to start
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Quit the app so installer can replace files
+                    if (app) {
+                        app.quit();
+                    }
+                } catch (error) {
+                    this.logger.error(`Failed to launch Windows installer: ${(error as Error).message}`);
+                    throw new Error(`Failed to launch installer. Please try running it manually from: ${installerPath}\n\nError: ${(error as Error).message}`);
+                }
+                return; // Skip cleanup since we're exiting
             }
             case "darwin": {
-                // Mount DMG and copy app
+                // Mount DMG, install, and restart on macOS
                 this.logger.info(`Installing update on macOS: ${installerPath}`);
-                const volume = "/Volumes/StreamGo";
+
                 try {
-                    await execFileAsync("hdiutil", ["attach", installerPath, "-mountpoint", volume]);
-                    // Find the .app bundle in the mounted volume
-                    const appPath = `${volume}/StreamGo.app`;
-                    if (existsSync(appPath)) {
-                        await execFileAsync("cp", ["-R", appPath, "/Applications/"]);
-                    } else {
-                        throw new Error("StreamGo.app not found in DMG");
+                    if (!app) {
+                        throw new Error("App not available - cannot create update script");
                     }
-                } finally {
-                    await execFileAsync("hdiutil", ["detach", volume]).catch(() => {
-                        // Ignore errors when detaching
+
+                    // Verify DMG file exists and is valid
+                    if (!existsSync(installerPath)) {
+                        throw new Error(`Installer file not found: ${installerPath}`);
+                    }
+
+                    const fileStats = statSync(installerPath);
+                    if (fileStats.size < 1024 * 1024) {
+                        throw new Error(`Installer file is too small (${fileStats.size} bytes), likely corrupted`);
+                    }
+
+                    this.logger.info(`Installer file verified: ${fileStats.size} bytes`);
+
+                    // Create a shell script that will:
+                    // 1. Wait for this process to exit
+                    // 2. Mount the DMG
+                    // 3. Copy to Applications
+                    // 4. Unmount the DMG
+                    // 5. Launch the new version
+                    // 6. Delete the DMG and itself
+                    const currentPid = process.pid;
+                    const volume = "/Volumes/StreamGo";
+                    const installPath = "/Applications/StreamGo.app";
+                    const appPath = `${volume}/StreamGo.app`;
+
+                    const shellScript = `#!/bin/bash
+# StreamGo Update Helper for macOS
+
+echo "Waiting for StreamGo to exit (PID ${currentPid})..."
+while kill -0 ${currentPid} 2>/dev/null; do
+    sleep 1
+done
+
+echo "Unmounting any existing volume..."
+hdiutil detach "${volume}" -force 2>/dev/null || true
+
+echo "Mounting DMG..."
+if ! hdiutil attach "${installerPath}" -mountpoint "${volume}" -nobrowse -noautoopen; then
+    echo "Error: Failed to mount DMG"
+    exit 1
+fi
+
+echo "Waiting for mount to complete..."
+sleep 2
+
+if [ ! -d "${appPath}" ]; then
+    echo "Error: StreamGo.app not found in DMG"
+    hdiutil detach "${volume}" -force 2>/dev/null || true
+    exit 1
+fi
+
+echo "Removing old version..."
+rm -rf "${installPath}" 2>/dev/null || true
+
+echo "Copying new version to Applications..."
+if ! ditto "${appPath}" "${installPath}"; then
+    echo "Error: Failed to copy app"
+    hdiutil detach "${volume}" -force 2>/dev/null || true
+    exit 1
+fi
+
+echo "Unmounting DMG..."
+hdiutil detach "${volume}" -force 2>/dev/null || true
+
+echo "Cleaning up installer..."
+rm -f "${installerPath}"
+
+echo "Launching new version..."
+open -n "${installPath}"
+
+echo "Cleaning up script..."
+rm -f "$0"
+
+echo "Update complete!"
+exit 0
+`;
+
+                    const scriptPath = join(app.getPath("temp"), "streamgo-update.sh");
+                    writeFileSync(scriptPath, shellScript, { encoding: 'utf8', mode: 0o755 });
+                    this.logger.info(`Created update shell script: ${scriptPath}`);
+
+                    // Launch the shell script in the background
+                    const shellProcess = spawn("/bin/bash", [scriptPath], {
+                        detached: true,
+                        stdio: 'ignore',
                     });
+
+                    // Unref so the child can continue after parent exits
+                    shellProcess.unref();
+
+                    this.logger.info("Update shell script launched, app will now exit");
+
+                    // Give script time to start
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Quit the app so the script can do its work
+                    if (app) {
+                        app.quit();
+                    }
+
+                    return;
+                } catch (error) {
+                    this.logger.error(`macOS installation failed: ${(error as Error).message}`);
+                    throw error;
                 }
-                break;
             }
             case "linux": {
-                // Replace existing AppImage
+                // Replace existing AppImage using atomic move operation
                 this.logger.info(`Installing update on Linux: ${installerPath}`);
                 const appImagePath = process.execPath; // Current AppImage path
+
                 if (appImagePath.endsWith(".AppImage") || appImagePath.endsWith(".appimage")) {
-                    await execFileAsync("cp", [installerPath, appImagePath]);
-                    await execFileAsync("chmod", ["+x", appImagePath]);
+                    try {
+                        // Make new AppImage executable
+                        await execFileAsync("chmod", ["+x", installerPath]);
+
+                        // Create backup of current AppImage
+                        const backupPath = `${appImagePath}.backup`;
+                        try {
+                            await execFileAsync("cp", [appImagePath, backupPath]);
+                            this.logger.info(`Created backup at: ${backupPath}`);
+                        } catch (error) {
+                            this.logger.warn(`Failed to create backup: ${(error as Error).message}`);
+                        }
+
+                        // Use a helper script to replace the AppImage after this process exits
+                        // This is necessary because we can't replace a running executable
+                        const helperScript = `#!/bin/bash
+# StreamGo Update Helper Script
+# This script replaces the old AppImage with the new one and restarts the app
+
+set -e  # Exit on error
+
+# Wait for the app to fully exit
+echo "Waiting for app to exit..."
+sleep 2
+
+# Check if new AppImage exists
+if [ ! -f "${installerPath}" ]; then
+    echo "Error: New AppImage not found at ${installerPath}"
+    exit 1
+fi
+
+# Check if old AppImage exists
+if [ ! -f "${appImagePath}" ]; then
+    echo "Error: Old AppImage not found at ${appImagePath}"
+    exit 1
+fi
+
+# Replace old AppImage with new one
+echo "Replacing old AppImage..."
+if ! mv -f "${installerPath}" "${appImagePath}"; then
+    echo "Error: Failed to replace AppImage. You may need to manually copy the new version."
+    echo "New version is located at: ${installerPath}"
+    exit 1
+fi
+
+# Make sure it's executable
+echo "Setting executable permissions..."
+chmod +x "${appImagePath}"
+
+# Launch the new version
+echo "Launching updated app..."
+"${appImagePath}" &
+
+# Clean up this script
+rm -f "$0"
+
+echo "Update complete!"
+`;
+                        if (!app) {
+                            throw new Error("App not available - cannot create update script");
+                        }
+                        const scriptPath = join(app.getPath("temp"), "streamgo-update.sh");
+                        writeFileSync(scriptPath, helperScript, { mode: 0o755 });
+
+                        this.logger.info(`Created update helper script at: ${scriptPath}`);
+
+                        // Launch the helper script in the background
+                        execFileAsync("bash", [scriptPath]).catch((error) => {
+                            this.logger.error(`Helper script failed: ${(error as Error).message}`);
+                        });
+
+                        // Quit the app immediately so the helper can replace the file
+                        this.logger.info("App will now exit for update to complete");
+                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                        if (app) {
+                            app.exit(0);
+                        }
+
+                    } catch (error) {
+                        this.logger.error(`Failed to install update on Linux: ${(error as Error).message}`);
+                        throw new Error(`Failed to install update. Please manually replace your AppImage with the downloaded file at: ${installerPath}\n\nError: ${(error as Error).message}`);
+                    }
                 } else {
                     // If not running from AppImage, copy to a standard location
                     const targetPath = join(process.env.HOME || "/home", "Applications", basename(installerPath));
                     await execFileAsync("mkdir", ["-p", join(process.env.HOME || "/home", "Applications")]);
                     await execFileAsync("cp", [installerPath, targetPath]);
                     await execFileAsync("chmod", ["+x", targetPath]);
+
+                    throw new Error(`Update downloaded to: ${targetPath}\n\nPlease manually launch the new version.`);
                 }
-                break;
+                return; // Skip cleanup since we're exiting or script will handle it
             }
             default:
                 throw new Error(`Unsupported platform: ${platform}`);
         }
 
-        // Clean up installer file after successful installation
+        // Clean up installer file after successful installation (macOS only reaches here)
         try {
             if (existsSync(installerPath)) {
                 unlinkSync(installerPath);

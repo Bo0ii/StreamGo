@@ -72,6 +72,155 @@
                 <span>Warm</span>
             </div>
         </div>
+
+        <!-- Highlights -->
+        <div class="video-filter-control">
+            <div class="video-filter-label">
+                <span>Highlights</span>
+                <span id="highlights-value" class="video-filter-value">{{ highlights }}%</span>
+            </div>
+            <input type="range" id="video-filter-highlights" class="video-filter-slider"
+                   min="50" max="150" value="{{ highlights }}" step="1">
+        </div>
+
+        <!-- Shadows (Black Levels) -->
+        <div class="video-filter-control">
+            <div class="video-filter-label">
+                <span>Shadows</span>
+                <span id="shadows-value" class="video-filter-value">{{ shadows }}%</span>
+            </div>
+            <input type="range" id="video-filter-shadows" class="video-filter-slider"
+                   min="50" max="150" value="{{ shadows }}" step="1">
+        </div>
+
+        <!-- Denoise -->
+        <div class="video-filter-control">
+            <div class="video-filter-label">
+                <span>Denoise</span>
+                <span id="denoise-value" class="video-filter-value">{{ denoise }}%</span>
+            </div>
+            <input type="range" id="video-filter-denoise" class="video-filter-slider"
+                   min="0" max="100" value="{{ denoise }}" step="1">
+        </div>
+
+        <!-- Edge Enhancement -->
+        <div class="video-filter-control">
+            <div class="video-filter-label">
+                <span>Edge Enhancement</span>
+                <span id="edge-enhance-value" class="video-filter-value">{{ edgeEnhance }}%</span>
+            </div>
+            <input type="range" id="video-filter-edge-enhance" class="video-filter-slider"
+                   min="0" max="100" value="{{ edgeEnhance }}" step="1">
+        </div>
+
+        <!-- Effects Section Divider -->
+        <div class="video-filter-section-divider">
+            <span>Effects</span>
+        </div>
+
+        <!-- Fake HDR Toggle -->
+        <div class="video-filter-control video-filter-toggle-control">
+            <div class="video-filter-label">
+                <span>Fake HDR</span>
+                <label class="video-filter-toggle">
+                    <input type="checkbox" id="video-filter-fake-hdr" {{ fakeHDRChecked }}>
+                    <span class="video-filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="video-filter-hint">HDR-like tone mapping with expanded dynamic range</div>
+        </div>
+
+        <!-- Anime Enhance Toggle -->
+        <div class="video-filter-control video-filter-toggle-control">
+            <div class="video-filter-label">
+                <span>Anime Enhance</span>
+                <label class="video-filter-toggle">
+                    <input type="checkbox" id="video-filter-anime-enhance" {{ animeEnhanceChecked }}>
+                    <span class="video-filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="video-filter-hint">Line art sharpening inspired by Anime4K</div>
+        </div>
+
+        <!-- Anti-Aliasing Toggle -->
+        <div class="video-filter-control video-filter-toggle-control">
+            <div class="video-filter-label">
+                <span>Anti-Aliasing</span>
+                <label class="video-filter-toggle">
+                    <input type="checkbox" id="video-filter-anti-aliasing" {{ antiAliasingChecked }}>
+                    <span class="video-filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="video-filter-hint">FXAA-style edge smoothing to reduce jaggies</div>
+        </div>
+
+        <!-- Anime4K WebGL Section Divider -->
+        <div class="video-filter-section-divider">
+            <span>Anime4K WebGL</span>
+        </div>
+
+        <!-- Anime4K Mode Selector -->
+        <div class="video-filter-control anime4k-control">
+            <div class="video-filter-label">
+                <span>Mode</span>
+            </div>
+            <!-- Lite modes for laptops -->
+            <div class="anime4k-mode-selector anime4k-mode-selector-lite" data-current-mode="{{ anime4kMode }}">
+                <button class="anime4k-mode-btn" data-mode="off" title="Disabled" {{ anime4kSupported }}>OFF</button>
+                <button class="anime4k-mode-btn anime4k-lite-btn" data-mode="modeALite" title="Mode A- (Lite) - For Laptops" {{ anime4kSupported }}>A-</button>
+                <button class="anime4k-mode-btn anime4k-lite-btn" data-mode="modeBLite" title="Mode B- (Lite) - For Laptops" {{ anime4kSupported }}>B-</button>
+                <button class="anime4k-mode-btn anime4k-lite-btn" data-mode="modeCLite" title="Mode C- (Lite) - For Laptops" {{ anime4kSupported }}>C-</button>
+            </div>
+            <!-- Standard modes -->
+            <div class="anime4k-mode-selector" data-current-mode="{{ anime4kMode }}">
+                <button class="anime4k-mode-btn" data-mode="modeA" title="Mode A - Line Restore" {{ anime4kSupported }}>A</button>
+                <button class="anime4k-mode-btn" data-mode="modeB" title="Mode B - Soft Restore" {{ anime4kSupported }}>B</button>
+                <button class="anime4k-mode-btn" data-mode="modeC" title="Mode C - Upscale Denoise" {{ anime4kSupported }}>C</button>
+            </div>
+            <!-- HQ modes -->
+            <div class="anime4k-mode-selector anime4k-mode-selector-hq" data-current-mode="{{ anime4kMode }}">
+                <button class="anime4k-mode-btn" data-mode="modeAHQ" title="Mode A+ (HQ) - High Quality Line Restore" {{ anime4kSupported }}>A+</button>
+                <button class="anime4k-mode-btn" data-mode="modeBHQ" title="Mode B+ (HQ) - High Quality Soft Restore" {{ anime4kSupported }}>B+</button>
+                <button class="anime4k-mode-btn" data-mode="modeCHQ" title="Mode C+ (HQ) - High Quality Upscale Denoise" {{ anime4kSupported }}>C+</button>
+            </div>
+            <div class="anime4k-mode-selector anime4k-mode-selector-exclusive">
+                <button class="anime4k-mode-btn anime4k-bo0ii-btn" data-mode="bo0ii" title="Bo0ii Exclusive - Double Pass A+ (Very GPU Intensive)" {{ anime4kSupported }}>Bo0ii</button>
+            </div>
+            <div class="video-filter-hint">Real Anime4K upscaling via WebGL (GPU intensive)</div>
+        </div>
+
+        <!-- Bo0ii Warning Popup -->
+        <div id="bo0ii-warning-popup" class="bo0ii-warning-popup hidden">
+            <div class="bo0ii-warning-content">
+                <div class="bo0ii-warning-icon">⚠️</div>
+                <div class="bo0ii-warning-title">Bo0ii Exclusive Mode</div>
+                <div class="bo0ii-warning-text">
+                    This preset uses double-pass A+ shaders for maximum quality.
+                    It requires significantly more GPU resources and may cause
+                    frame drops on lower-end hardware.
+                </div>
+                <div class="bo0ii-warning-buttons">
+                    <button id="bo0ii-cancel-btn" class="bo0ii-btn bo0ii-btn-cancel">Cancel</button>
+                    <button id="bo0ii-confirm-btn" class="bo0ii-btn bo0ii-btn-confirm">Enable Anyway</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Playback Section Divider -->
+        <div class="video-filter-section-divider">
+            <span>Playback</span>
+        </div>
+
+        <!-- Motion Smooth -->
+        <div class="video-filter-control">
+            <div class="video-filter-label">
+                <span>Motion Smooth</span>
+                <span id="motion-smooth-value" class="video-filter-value">{{ motionSmooth }}%</span>
+            </div>
+            <input type="range" id="video-filter-motion-smooth" class="video-filter-slider"
+                   min="0" max="100" value="{{ motionSmooth }}" step="1">
+            <div class="video-filter-hint">Frame blending for smoother motion</div>
+        </div>
     </div>
 </div>
 
@@ -297,14 +446,278 @@
         color: rgba(255, 150, 100, 0.6);
     }
 
-    /* WebGL Canvas Overlay - positioned over video */
-    #video-filter-canvas {
+    /* Section Divider */
+    .video-filter-section-divider {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 20px 0 16px 0;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .video-filter-section-divider::before,
+    .video-filter-section-divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    }
+
+    /* Hint text below sliders */
+    .video-filter-hint {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.4);
+        margin-top: 4px;
+        font-style: italic;
+    }
+
+    /* Toggle Control */
+    .video-filter-toggle-control .video-filter-label {
+        margin-bottom: 4px;
+    }
+
+    /* Toggle Switch */
+    .video-filter-toggle {
+        position: relative;
+        display: inline-block;
+        width: 40px;
+        height: 22px;
+    }
+
+    .video-filter-toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .video-filter-toggle-slider {
         position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 22px;
+        transition: all 0.3s ease;
+    }
+
+    .video-filter-toggle-slider::before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 3px;
+        bottom: 3px;
+        background: white;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .video-filter-toggle input:checked + .video-filter-toggle-slider {
+        background: linear-gradient(135deg, var(--vf-accent) 0%, var(--vf-accent-light) 100%);
+        box-shadow: 0 2px 8px rgba(var(--vf-accent-rgb), 0.4);
+    }
+
+    .video-filter-toggle input:checked + .video-filter-toggle-slider::before {
+        transform: translateX(18px);
+    }
+
+    .video-filter-toggle input:focus + .video-filter-toggle-slider {
+        box-shadow: 0 0 0 2px rgba(var(--vf-accent-rgb), 0.3);
+    }
+
+    /* Anime4K Mode Selector */
+    .anime4k-mode-selector {
+        display: flex;
+        gap: 4px;
+        margin-top: 8px;
+    }
+
+    .anime4k-mode-selector-hq {
+        margin-top: 6px;
+    }
+
+    .anime4k-mode-btn {
+        flex: 1;
+        padding: 8px 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 6px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .anime4k-mode-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+    }
+
+    .anime4k-mode-btn.active {
+        background: linear-gradient(135deg, var(--vf-accent) 0%, var(--vf-accent-light) 100%);
+        border-color: var(--vf-accent);
+        color: white;
+        box-shadow: 0 2px 8px rgba(var(--vf-accent-rgb), 0.4);
+    }
+
+    .anime4k-mode-btn:active:not(:disabled) {
+        transform: scale(0.95);
+    }
+
+    .anime4k-mode-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .anime4k-control .video-filter-hint {
+        margin-top: 8px;
+    }
+
+    /* Lite modes for laptops */
+    .anime4k-mode-selector-lite {
+        margin-bottom: 4px;
+    }
+
+    .anime4k-lite-btn {
+        background: rgba(76, 175, 80, 0.2);
+        border-color: rgba(76, 175, 80, 0.4);
+        color: rgba(76, 175, 80, 0.9);
+    }
+
+    .anime4k-lite-btn:hover:not(:disabled) {
+        background: rgba(76, 175, 80, 0.3);
+        color: #4CAF50;
+    }
+
+    .anime4k-lite-btn.active {
+        background: linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%);
+        border-color: #4CAF50;
+        color: white;
+        box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+    }
+
+    /* Bo0ii Exclusive Button */
+    .anime4k-mode-selector-exclusive {
+        margin-top: 8px;
+    }
+
+    .anime4k-bo0ii-btn {
+        width: 100%;
+        background: linear-gradient(135deg, #8b0000 0%, #a52a2a 100%);
+        border-color: #8b0000;
+        color: white;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+
+    .anime4k-bo0ii-btn:hover:not(:disabled) {
+        background: linear-gradient(135deg, #a00000 0%, #b22222 100%);
+        box-shadow: 0 2px 12px rgba(139, 0, 0, 0.5);
+    }
+
+    .anime4k-bo0ii-btn.active {
+        background: linear-gradient(135deg, #8b0000 0%, #a52a2a 100%);
+        border-color: #8b0000;
+        box-shadow: 0 2px 12px rgba(139, 0, 0, 0.6);
+    }
+
+    /* Bo0ii Warning Popup */
+    .bo0ii-warning-popup {
+        position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10010;
+        opacity: 1;
+        transition: opacity 0.2s ease;
+    }
+
+    .bo0ii-warning-popup.hidden {
+        opacity: 0;
         pointer-events: none;
-        z-index: 1;
+    }
+
+    .bo0ii-warning-content {
+        background: rgba(30, 30, 40, 0.98);
+        border: 1px solid rgba(139, 0, 0, 0.5);
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 320px;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+    .bo0ii-warning-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+    }
+
+    .bo0ii-warning-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #cd5c5c;
+        margin-bottom: 12px;
+        letter-spacing: 0.5px;
+    }
+
+    .bo0ii-warning-text {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.8);
+        line-height: 1.5;
+        margin-bottom: 20px;
+    }
+
+    .bo0ii-warning-buttons {
+        display: flex;
+        gap: 12px;
+    }
+
+    .bo0ii-btn {
+        flex: 1;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+    }
+
+    .bo0ii-btn-cancel {
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    .bo0ii-btn-cancel:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+    }
+
+    .bo0ii-btn-confirm {
+        background: linear-gradient(135deg, #8b0000 0%, #a52a2a 100%);
+        color: white;
+    }
+
+    .bo0ii-btn-confirm:hover {
+        box-shadow: 0 4px 16px rgba(139, 0, 0, 0.5);
+        transform: translateY(-1px);
+    }
+
+    .bo0ii-btn:active {
+        transform: scale(0.98);
     }
 </style>

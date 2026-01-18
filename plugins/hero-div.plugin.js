@@ -234,8 +234,9 @@
     }
 
     function isBoardTabSelected() {
+        // Check for both "Board" and "Home" (renamed in StreamGo)
         const boardTab = document.querySelector(
-            'a[title="Board"].selected, a[href="#/"].selected, .nav-tab-button-container-dYhs0.selected[href="#/"]'
+            'a[title="Board"].selected, a[title="Home"].selected, a[href="#/"].selected, .nav-tab-button-container-dYhs0.selected[href="#/"]'
         );
         return boardTab !== null;
     }
@@ -839,9 +840,8 @@
         }
         
         if (shouldShow && !heroExists) {
+            // Single call - addHeroDiv has internal retry logic
             setTimeout(() => addHeroDiv(), 100);
-            setTimeout(() => addHeroDiv(), 500);
-            setTimeout(() => addHeroDiv(), 1000);
         }
         
         heroState.lastKnownHash = currentHash;

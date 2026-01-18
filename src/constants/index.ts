@@ -21,10 +21,10 @@ export const SELECTORS = {
 
     // Enhanced (StreamGo) section - these are stable IDs we control
     ENHANCED_SECTION: '#enhanced',
-    THEMES_CATEGORY: '#enhanced > div:nth-child(2)',       // Our Themes category (first after section title)
-    PLUGINS_CATEGORY: '#enhanced > div:nth-child(3)',      // Our Plugins category
-    TWEAKS_CATEGORY: '#enhanced > div:nth-child(4)',       // Our Tweaks category
-    ABOUT_CATEGORY: '#enhanced > div:nth-child(5)',        // Our About category
+    THEMES_CATEGORY: '#enhanced > div:nth-child(2)',       // Our Themes category (first after section title) - REMOVED
+    PLUGINS_CATEGORY: '#enhanced > div:nth-child(3)',      // Our Plugins category - REMOVED
+    TWEAKS_CATEGORY: '#enhanced > div:nth-child(4)',       // Our Tweaks category - REMOVED
+    ABOUT_CATEGORY: '#enhanced > div:nth-child(2)',        // Our About category (now first after section title)
 
     // Page containers
     ROUTE_CONTAINER: '.route-container:last-child .route-content',  // Active route content
@@ -43,6 +43,17 @@ export const SELECTORS = {
 
     // Navigation
     HORIZONTAL_NAV: '.horizontal-nav-bar-container-Y_zvK',   // Top navigation bar
+    HORIZONTAL_NAV_GENERIC: '[class*="horizontal-nav-bar-container"]', // Generic selector for top nav
+
+    // Plus page
+    PLUS_PAGE_CONTAINER: '#plus-page-container',
+    PLUS_SIDEBAR: '#plus-sidebar',
+    PLUS_CONTENT: '#plus-content',
+    PLUS_NAV_BUTTON: '#plus-nav-button',
+
+    // Party system
+    PARTY_WATCH_BUTTON: '#party-watch-button',
+    ACTION_BUTTONS_CONTAINER: '[class*="action-buttons-container"]',
 } as const;
 
 // CSS Classes used for styling
@@ -91,8 +102,19 @@ export const STORAGE_KEYS = {
     VIDEO_FILTER_SATURATION: 'videoFilterSaturation',
     VIDEO_FILTER_TEMPERATURE: 'videoFilterTemperature',
     VIDEO_FILTER_ENABLED: 'videoFilterEnabled',
+    VIDEO_FILTER_HIGHLIGHTS: 'videoFilterHighlights',
+    VIDEO_FILTER_SHADOWS: 'videoFilterShadows',
+    VIDEO_FILTER_DENOISE: 'videoFilterDenoise',
+    VIDEO_FILTER_EDGE_ENHANCE: 'videoFilterEdgeEnhance',
+    VIDEO_FILTER_FAKE_HDR: 'videoFilterFakeHDR',
+    VIDEO_FILTER_ANIME_ENHANCE: 'videoFilterAnimeEnhance',
+    VIDEO_FILTER_ANTI_ALIASING: 'videoFilterAntiAliasing',
+    VIDEO_FILTER_ANIME4K_MODE: 'videoFilterAnime4KMode',
+    VIDEO_FILTER_MOTION_SMOOTH: 'videoFilterMotionSmooth',
     // Streaming performance settings
     STREAMING_PROFILE: 'streamingProfile',
+    // Bundled addons installation tracking
+    BUNDLED_ADDONS_INSTALLED: 'streamgo_bundled_addons_installed',
 } as const;
 
 // IPC Channel names for main <-> renderer communication
@@ -131,6 +153,7 @@ export const EXTERNAL_PLAYERS = {
     BUILTIN: 'builtin',
     VLC: 'vlc',
     MPCHC: 'mpchc',
+    MPV: 'mpv',
 } as const;
 
 // File extensions for mods
@@ -143,41 +166,16 @@ export const FILE_EXTENSIONS = {
 export const URLS = {
     STREMIO_WEB: 'https://web.stremio.com/',
     REGISTRY: 'https://raw.githubusercontent.com/REVENGE977/stremio-enhanced-registry/main/registry.json',
-    VERSION_CHECK: 'https://github.com/Bo0ii/StreamGo/raw/main/version',
-    RELEASES_API: 'https://api.github.com/repos/Bo0ii/StreamGo/releases/latest',
-    RELEASES_PAGE: 'https://github.com/Bo0ii/StreamGo/releases/latest',
+    VERSION_CHECK: 'https://github.com/Bo0ii/StremioGo-NEW/raw/main/version',
+    RELEASES_API: 'https://api.github.com/repos/Bo0ii/StremioGo-NEW/releases/latest',
+    RELEASES_PAGE: 'https://github.com/Bo0ii/StremioGo-NEW/releases/latest',
 } as const;
-
-// server.js (Stremio streaming server) Download URL
-export const SERVER_JS_URL = "https://dl.strem.io/server/v4.20.12/desktop/server.js";
-
-// FFmpeg Download URLs
-export const FFMPEG_URLS = {
-    win32: {
-        x64: "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
-        arm64: "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-winarm64-gpl.zip",
-    },
-    darwin: {
-        x64: "https://ffmpeg.martin-riedl.de/download/macos/amd64/1766437297_8.0.1/ffmpeg.zip",
-        arm64: "https://ffmpeg.martin-riedl.de/download/macos/arm64/1766430132_8.0.1/ffmpeg.zip",
-    },
-    linux: {
-        x64: "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz",
-        arm64: "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz",
-    },
-} as const;
-
-// FFprobe Download URLs for macOS
-export const MACOS_FFPROBE_URLS = {
-    x64: "https://ffmpeg.martin-riedl.de/download/macos/amd64/1766437297_8.0.1/ffprobe.zip",
-    arm64: "https://ffmpeg.martin-riedl.de/download/macos/arm64/1766430132_8.0.1/ffprobe.zip",
-};
 
 // Discord RPC
 export const DISCORD = {
-    CLIENT_ID: '1200186750727893164',
+    CLIENT_ID: '1460972016453812365',
     RECONNECT_INTERVAL: 10000,
-    DEFAULT_IMAGE: '1024stremio',
+    DEFAULT_IMAGE: 'streamgo', // Custom StreamGo icon - must be uploaded to Discord Developer Portal
 } as const;
 
 // Timeouts
@@ -199,6 +197,8 @@ export const TIMEOUTS = {
     ICON_RETRY_DELAY: 100,
     ICON_MUTATION_DEBOUNCE: 50,
     SCROLL_STATE_DELAY: 200,
+    // Navigation transition duration for coordinated fixes
+    NAV_TRANSITION_DURATION: 300,
 } as const;
 
 // Default values for player settings
@@ -214,6 +214,15 @@ export const PLAYER_DEFAULTS = {
     VIDEO_FILTER_CONTRAST: 100,     // Range: 50-150 (100 = normal)
     VIDEO_FILTER_SATURATION: 100,   // Range: 0-200 (100 = normal)
     VIDEO_FILTER_TEMPERATURE: 0,    // Range: -100 to 100 (0 = neutral)
+    VIDEO_FILTER_HIGHLIGHTS: 100,   // Range: 50-150 (100 = normal)
+    VIDEO_FILTER_SHADOWS: 100,      // Range: 50-150 (100 = normal)
+    VIDEO_FILTER_DENOISE: 0,        // Range: 0-100 (0 = no denoise)
+    VIDEO_FILTER_EDGE_ENHANCE: 0,   // Range: 0-100 (0 = no edge enhancement)
+    VIDEO_FILTER_FAKE_HDR: false,   // Boolean toggle for HDR-like tone mapping effect
+    VIDEO_FILTER_ANIME_ENHANCE: false, // Boolean toggle for anime line art enhancement
+    VIDEO_FILTER_ANTI_ALIASING: false, // Boolean toggle for FXAA-style edge smoothing
+    VIDEO_FILTER_ANIME4K_MODE: 'off', // Anime4K WebGL mode: off, modeA, modeB, modeC, modeAHQ, modeBHQ, modeCHQ
+    VIDEO_FILTER_MOTION_SMOOTH: 0, // Range: 0-100 (0 = off, motion smoothing/frame blending)
 } as const;
 
 // Playback speed options

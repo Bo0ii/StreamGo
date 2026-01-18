@@ -484,6 +484,20 @@ class PlayerOverlay {
         this.ambilightCanvas.height = 9;
         this.ambilightCtx = this.ambilightCanvas.getContext('2d');
 
+        // Add event listeners to pause/resume animation with playback
+        this.video.addEventListener('play', () => {
+            if (!this.ambilightAnimationId && this.ambilightEnabled) {
+                this.animateAmbilight();
+            }
+        });
+
+        this.video.addEventListener('pause', () => {
+            if (this.ambilightAnimationId) {
+                cancelAnimationFrame(this.ambilightAnimationId);
+                this.ambilightAnimationId = null;
+            }
+        });
+
         this.animateAmbilight();
         logger.info('[PlayerOverlay] Ambilight started');
     }
@@ -491,15 +505,20 @@ class PlayerOverlay {
     private animateAmbilight(): void {
         if (!this.video || !this.ambilightCtx || !this.ambilightCanvas) return;
 
+        // Only process frames when video is actively playing
         if (!this.video.paused && !this.video.ended) {
             this.ambilightCtx.drawImage(this.video, 0, 0, this.ambilightCanvas.width, this.ambilightCanvas.height);
             const colors = this.extractEdgeColors();
             this.applyAmbilightGlow(colors);
-        }
 
-        this.ambilightAnimationId = requestAnimationFrame(() => {
-            setTimeout(() => this.animateAmbilight(), TIMEOUTS.AMBILIGHT_SAMPLE_INTERVAL);
-        });
+            // Continue animation only if still playing
+            this.ambilightAnimationId = requestAnimationFrame(() => {
+                setTimeout(() => this.animateAmbilight(), TIMEOUTS.AMBILIGHT_SAMPLE_INTERVAL);
+            });
+        } else {
+            // Video is paused/ended - stop animation to save CPU/GPU
+            this.ambilightAnimationId = null;
+        }
     }
 
     private extractEdgeColors(): { top: string; bottom: string; left: string; right: string } {

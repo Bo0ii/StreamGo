@@ -8,17 +8,20 @@ class EnhancedPlayer {
     constructor() {
         this.init();
     }
-   
+
     init() {
         this.splitAndMoveTitles();
         this.addCustomButton();
+        this.addPartyButton();
         setTimeout(() => {
             this.splitAndMoveTitles();
             this.addCustomButton();
+            this.addPartyButton();
         }, 500);
         const observer = new MutationObserver(() => {
             this.splitAndMoveTitles();
             this.addCustomButton();
+            this.addPartyButton();
         });
         observer.observe(document.body, { childList: true, subtree: true });
     }
@@ -83,7 +86,106 @@ class EnhancedPlayer {
             }
         }
     }
-    
+
+    addPartyButton() {
+        // Only add in player view
+        if (!location.hash.includes('#/player')) {
+            return;
+        }
+
+        const controlBarSelectors = [
+            '.control-bar-buttons-menu-container-M6L0_',
+            "[class*='control-bar-buttons']",
+            "[class*='control-bar'] [class*='buttons']",
+            ".control-bar-container-xsWA7 [class*='buttons']",
+            "[class*='control-bar-container'] [class*='buttons-menu-container']"
+        ];
+
+        let controlBarContainer = null;
+        for (const selector of controlBarSelectors) {
+            controlBarContainer = document.querySelector(selector);
+            if (controlBarContainer) break;
+        }
+
+        if (!controlBarContainer) {
+            return;
+        }
+
+        if (controlBarContainer.querySelector('.party-player-button')) {
+            // Button exists, just update indicator
+            this.updatePartyIndicator();
+            return;
+        }
+
+        const partyButton = document.createElement('div');
+        partyButton.tabIndex = -1;
+        partyButton.className = 'control-bar-button-FQUsj button-container-zVLH6 party-player-button';
+        partyButton.title = 'Watch Party';
+
+        partyButton.innerHTML = `
+            <svg class="icon-qy6I6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 22px; height: 22px;">
+                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="currentColor"/>
+            </svg>
+            <span class="party-player-indicator" style="display: none; position: absolute; top: 0; right: 0; width: 8px; height: 8px; background: #22c55e; border-radius: 50%;"></span>
+        `;
+
+        partyButton.style.position = 'relative';
+        partyButton.style.cursor = 'pointer';
+
+        partyButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.handlePartyButtonClick();
+        });
+
+        partyButton.addEventListener('mouseenter', () => {
+            partyButton.style.opacity = '0.8';
+        });
+
+        partyButton.addEventListener('mouseleave', () => {
+            partyButton.style.opacity = '1';
+        });
+
+        // Insert after PiP button (at position 1)
+        const firstButton = controlBarContainer.querySelector('.custom-enhanced-button');
+        if (firstButton && firstButton.nextSibling) {
+            controlBarContainer.insertBefore(partyButton, firstButton.nextSibling);
+        } else {
+            controlBarContainer.insertAdjacentElement("afterbegin", partyButton);
+        }
+
+        // Update party indicator based on connection status
+        this.updatePartyIndicator();
+    }
+
+    handlePartyButtonClick() {
+        // Import and open party popover
+        if (typeof window.openPartyPopover === 'function') {
+            window.openPartyPopover();
+        } else {
+            // Fallback: dispatch custom event that preload.ts can listen to
+            window.dispatchEvent(new CustomEvent('streamgo:openPartyPopover'));
+        }
+    }
+
+    updatePartyIndicator() {
+        const indicator = document.querySelector('.party-player-indicator');
+        const button = document.querySelector('.party-player-button');
+        if (!indicator || !button) return;
+
+        // Check if partyService is connected (exposed on window)
+        const isConnected = window.partyService?.connected && window.partyService?.room;
+
+        if (isConnected) {
+            indicator.style.display = 'block';
+            button.style.color = '#10b981';
+            button.title = `Watch Party: ${window.partyService.room.name} (${window.partyService.room.members?.length || 0} members)`;
+        } else {
+            indicator.style.display = 'none';
+            button.style.color = '';
+            button.title = 'Watch Party';
+        }
+    }
+
     splitAndMoveTitles() {
         const titleSelectors = [
             "h2.title-DGh6h",

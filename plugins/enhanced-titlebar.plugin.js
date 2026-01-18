@@ -287,11 +287,8 @@ function enhanceAllTitleBars() {
 function init() {
     injectStyles();
     enhanceAllTitleBars();
-    
-    setInterval(() => {
-        enhanceAllTitleBars();
-    }, CONFIG.updateInterval);
-    
+
+    // MutationObserver handles DOM changes - no polling needed
     if (typeof MutationObserver !== 'undefined') {
         const observer = new MutationObserver((mutations) => {
             let shouldCheck = false;

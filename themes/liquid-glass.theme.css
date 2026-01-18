@@ -1,7 +1,7 @@
 /**
  * @name Modern Glass
  * @description A theme that takes advantage of Modern Glass Styles with Light and Dark Theme.
- * @version 1.1.0
+ * @version 1.2.0
  * @updateUrl https://github.com/Fxy6969/Streamio-Glass-Theme/tree/cover
  * @author Fxy/Moerat
  */
@@ -10,28 +10,31 @@
 
 * {
   font-family: 'Inter', sans-serif !important;
-  /* Thin overlay scrollbar - macOS style */
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  /* Hide scrollbars completely */
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 
-/* WebKit scrollbar - thin macOS style */
+/* WebKit scrollbar - completely hidden */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  display: none !important;
+  background: transparent !important;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
+  display: none !important;
+  background: transparent !important;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  display: none !important;
+  background: transparent !important;
 }
 
 /* change the accent color from purple to white */
@@ -163,10 +166,11 @@ body.scrolling-active [class*="library-content"] {
   -webkit-backface-visibility: hidden !important;
 }
 
-/* Smoother hover scale effect - native macOS spring feel */
+/* SIMPLIFIED hover - subtle brightness only, no scale */
 [class*="meta-item-container"]:hover [class*="poster-container"] {
-  transform: translate3d(0, 0, 0) scale3d(1.03, 1.03, 1) !important;
-  transition-timing-function: var(--mac-spring) !important;
+  transform: translate3d(0, 0, 0) !important;
+  filter: brightness(1.1) !important;
+  transition: filter 0.15s ease !important;
 }
 
 /* Instant visual feedback on press */
@@ -405,18 +409,34 @@ body.scrolling-active [class*="poster-container"] > *:not(img):not([class*="post
     backdrop-filter: var(--backdrop-filter) !important;
     border: 1px solid rgba(255, 255, 255, 0.04) !important; */
 
-html body {
+html, body {
   background: var(--background) !important;
-  overflow-y: scroll !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   scroll-behavior: smooth !important;
   -webkit-font-smoothing: antialiased !important;
   -moz-osx-font-smoothing: grayscale !important;
   text-rendering: optimizeLegibility !important;
+  width: 100% !important;
+  max-width: 100vw !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  /* Prevent scrollbar gutter from reserving space */
+  scrollbar-gutter: auto !important;
 }
 
-::-webkit-scrollbar {
-  width: 0;  /* removes scrollbar track */
-  height: 0;
+#app,
+#app > div,
+[class*="router"],
+[class*="routes-container"],
+[class*="route-content"] {
+  width: 100% !important;
+  max-width: 100vw !important;
+  margin: 0 !important;
+  padding-right: 0 !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  scrollbar-gutter: auto !important;
 }
 
 /* ========================= NAV BAR / HEADER ========================= */
@@ -467,6 +487,7 @@ nav[class*="horizontal-nav-bar"][style] {
 }
 
 /* App icon in top left corner - will be injected via JavaScript */
+/* IMPORTANT: Force visibility on ALL pages to fix disappearing logo issue */
 .app-icon-glass-theme {
     position: absolute !important;
     left: 48px !important; /* Added 10px left padding (38px + 4px + 6px) */
@@ -479,105 +500,33 @@ nav[class*="horizontal-nav-bar"][style] {
     pointer-events: none !important;
     filter: brightness(0.6) drop-shadow(0 1px 4px rgba(0, 0, 0, 0.2)) !important;
     opacity: 0.7 !important;
+    display: block !important;
+    visibility: visible !important;
 }
 
-/* Gradient blur pseudo-element - covers ENTIRE nav bar with consistent blur */
+/* Ensure app icon stays visible in main nav bar on all pages */
+[class*="main-nav-bars-container"] .app-icon-glass-theme {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 0.7 !important;
+}
+
+/* PERFORMANCE: No container overlay on nav bars - clean transparent look */
 .horizontal-nav-bar-container-Y_zvK::before,
 .horizontal-nav-bar-ji5GB::before,
 nav.horizontal-nav-bar-container-Y_zvK::before,
 nav.horizontal-nav-bar-ji5GB::before,
 [class*="horizontal-nav-bar-container"]::before,
 [class*="horizontal-nav-bar-"]::before {
-    content: '' !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    /* Subtle gradient tint for depth - fades to fully transparent */
-    background: linear-gradient(to bottom,
-        rgba(15, 15, 15, 0.6) 0%,
-        rgba(15, 15, 15, 0.3) 30%,
-        rgba(15, 15, 15, 0.1) 60%,
-        transparent 100%) !important;
-    /* Consistent blur - SAME for scroll and idle */
-    backdrop-filter: blur(4px) !important;
-    -webkit-backdrop-filter: blur(4px) !important;
-    /* Smooth gradient mask */
-    mask-image: linear-gradient(to bottom,
-        black 0%,
-        rgba(0, 0, 0, 0.85) 25%,
-        rgba(0, 0, 0, 0.5) 50%,
-        rgba(0, 0, 0, 0.15) 75%,
-        transparent 100%) !important;
-    -webkit-mask-image: linear-gradient(to bottom,
-        black 0%,
-        rgba(0, 0, 0, 0.85) 25%,
-        rgba(0, 0, 0, 0.5) 50%,
-        rgba(0, 0, 0, 0.15) 75%,
-        transparent 100%) !important;
-    z-index: 1 !important;
-    pointer-events: none !important;
-    /* GPU acceleration */
-    transform: translate3d(0, 0, 0) !important;
-    -webkit-transform: translate3d(0, 0, 0) !important;
-    backface-visibility: hidden !important;
-    -webkit-backface-visibility: hidden !important;
+    content: none !important;
+    display: none !important;
 }
 
-/* NO scroll performance changes for nav bar - keep blur consistent */
-
-/* Gradient blur for main navigation bar in routes container */
-/* NOTE: Excludes vertical-nav-bar to prevent double blur (it's already covered by horizontal-nav-bar::before) */
-#app > div[class*="router"] > div[class*="routes-container"] > div > div[class*="route-content"] > div > div > nav:not([class*="vertical-nav-bar"]),
-#app [class*="routes-container"] nav:not([class*="vertical-nav-bar"]),
-#app [class*="route-content"] nav:not([class*="vertical-nav-bar"]) {
-    position: relative !important;
-    background: transparent !important;
-}
-
-#app > div[class*="router"] > div[class*="routes-container"] > div > div[class*="route-content"] > div > div > nav:not([class*="vertical-nav-bar"])::before,
-#app [class*="routes-container"] nav:not([class*="vertical-nav-bar"])::before,
-#app [class*="route-content"] nav:not([class*="vertical-nav-bar"])::before {
-    content: '' !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    /* Subtle gradient tint for depth - fades to fully transparent */
-    background: linear-gradient(to bottom,
-        rgba(15, 15, 15, 0.6) 0%,
-        rgba(15, 15, 15, 0.3) 30%,
-        rgba(15, 15, 15, 0.1) 60%,
-        transparent 100%) !important;
-    /* Consistent blur - SAME for scroll and idle */
-    backdrop-filter: blur(4px) !important;
-    -webkit-backdrop-filter: blur(4px) !important;
-    /* Smooth gradient mask */
-    mask-image: linear-gradient(to bottom,
-        black 0%,
-        rgba(0, 0, 0, 0.85) 25%,
-        rgba(0, 0, 0, 0.5) 50%,
-        rgba(0, 0, 0, 0.15) 75%,
-        transparent 100%) !important;
-    -webkit-mask-image: linear-gradient(to bottom,
-        black 0%,
-        rgba(0, 0, 0, 0.85) 25%,
-        rgba(0, 0, 0, 0.5) 50%,
-        rgba(0, 0, 0, 0.15) 75%,
-        transparent 100%) !important;
-    z-index: -1 !important;
-    pointer-events: none !important;
-    /* GPU acceleration */
-    transform: translate3d(0, 0, 0) !important;
-    -webkit-transform: translate3d(0, 0, 0) !important;
-    backface-visibility: hidden !important;
-    -webkit-backface-visibility: hidden !important;
+/* Routes container nav - no overlay */
+#app [class*="routes-container"] nav::before,
+#app [class*="route-content"] nav::before {
+    content: none !important;
+    display: none !important;
 }
 
 /* Ensure vertical-nav-bar has NO ::before pseudo-element with blur */
@@ -748,6 +697,20 @@ nav[class*="horizontal-nav-bar"] [class*="buttons-container-Oc5z1"] {
   gap: 8px !important;
 }
 
+/* IMPORTANT: Ensure buttons-container in MAIN nav bar is ALWAYS visible on ALL pages */
+/* This fixes the issue where profile picture disappears on non-home pages */
+[class*="main-nav-bars-container"] [class*="horizontal-nav-bar"] [class*="buttons-container"] {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: absolute !important;
+  right: 16px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  -webkit-transform: translateY(-50%) !important;
+  z-index: 100 !important;
+}
+
 /* Style any menu/button container in the top nav */
 /* NOTE: Removed backdrop-filter to prevent blur conflicts with nav bar */
 #app nav[class*="horizontal-nav-bar"] [class*="buttons-container"] > div[class*="button-container"],
@@ -769,6 +732,121 @@ nav[class*="horizontal-nav-bar"] [class*="buttons-container-Oc5z1"] {
   visibility: hidden !important;
   opacity: 0 !important;
 }
+
+/* ========================= NAVIGATION STABILITY ========================= */
+/* Keep nav bar stable - instant updates with smooth fade-in animation */
+
+/* Ensure horizontal nav bar maintains consistent height */
+[class*="horizontal-nav-bar"] {
+  min-height: 60px !important;
+}
+
+/* Ensure vertical nav inside horizontal nav is always visible */
+[class*="horizontal-nav-bar"] [class*="vertical-nav-bar"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* ========================= PAGE LOADING BLUR OVERLAY ========================= */
+/* Beautiful blur loading screen when switching main pages */
+
+/* Main overlay container - hidden by default */
+#streamgo-page-loader {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  background: rgba(10, 10, 15, 0.5) !important;
+  backdrop-filter: blur(15px) !important;
+  -webkit-backdrop-filter: blur(15px) !important;
+  will-change: opacity !important;
+  transform: translateZ(0) !important;
+}
+
+/* Active state - show overlay instantly */
+#streamgo-page-loader.active {
+  opacity: 1 !important;
+  pointer-events: all !important;
+  transition: none !important;
+}
+
+/* Fade out state - GPU accelerated smooth fade */
+#streamgo-page-loader.fade-out {
+  opacity: 0 !important;
+  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  pointer-events: none !important;
+}
+
+/* ========================= NAV LOADING ANIMATION ========================= */
+/* Smooth skeleton fade-in effect when switching pages */
+
+/* Keyframes for skeleton shimmer effect */
+@keyframes streamgo-shimmer {
+  0% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.4; }
+}
+
+/* Keyframes for smooth fade-in */
+@keyframes streamgo-fade-in {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+
+/* Loading state - subtle shimmer on nav content */
+[class*="main-nav-bars-container"].streamgo-nav-loading [class*="vertical-nav-bar"],
+[class*="main-nav-bars-container"].streamgo-nav-loading [class*="buttons-container"],
+[class*="main-nav-bars-container"].streamgo-nav-loading .app-icon-glass-theme {
+  animation: streamgo-shimmer 0.3s ease-in-out !important;
+}
+
+/* After loading - smooth fade-in */
+[class*="main-nav-bars-container"]:not(.streamgo-nav-loading) [class*="vertical-nav-bar"],
+[class*="main-nav-bars-container"]:not(.streamgo-nav-loading) [class*="buttons-container"],
+[class*="main-nav-bars-container"]:not(.streamgo-nav-loading) .app-icon-glass-theme {
+  animation: streamgo-fade-in 0.15s ease-out !important;
+}
+
+/* Keep nav bar structure stable during animation */
+[class*="main-nav-bars-container"].streamgo-nav-loading {
+  pointer-events: none;
+}
+
+[class*="main-nav-bars-container"]:not(.streamgo-nav-loading) {
+  pointer-events: auto;
+}
+
+/* ========================= HIDE ORIGINAL STREMIO DOCK ICONS ========================= */
+/* Hide the original Stremio sidebar/dock icons to prevent flickering during navigation */
+/* The Glass theme uses text labels instead, so icons are not needed */
+
+/* Hide ALL SVG icons in vertical nav bar links - prevents icon flicker */
+[class*="vertical-nav-bar"] a svg,
+[class*="vertical-nav-bar"] [class*="icon"],
+[class*="vertical-nav-bar"] a > svg,
+[class*="nav-tab-button"] svg,
+[class*="nav-tabs-container"] svg {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+}
+
+/* Hide the original vertical nav bar when it's NOT inside horizontal nav bar */
+/* This prevents the old dock from flashing in its original sidebar position */
+#app > div[class*="router"] > div[class*="routes-container"] > div > div[class*="route-content"] [class*="vertical-nav-bar"]:not([class*="horizontal-nav-bar"] *),
+[class*="route-content"] > [class*="vertical-nav-bar"],
+[class*="route-content"] [class*="nav-bars-container"] > [class*="vertical-nav-bar"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
 
 /* ========================= VERTICAL NAV / SIDEBAR ========================= */
 
@@ -1808,7 +1886,7 @@ body.ghost-clicking #heroLoadingScreen {
     will-change: opacity, filter !important;
 }
 
-/* Create full-poster gray overlay on hover (hidden by default) - GPU optimized */
+/* Subtle overlay on hover (hidden by default) - lighter effect */
 .meta-item-container-Tj0Ib .poster-container-qkw48::before {
     content: '';
     position: absolute !important;
@@ -1818,20 +1896,19 @@ body.ghost-clicking #heroLoadingScreen {
     bottom: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    background: rgba(0, 0, 0, 0.4) !important;
+    background: rgba(0, 0, 0, 0.15) !important;
     opacity: 0 !important;
     z-index: 5 !important;
     pointer-events: none !important;
-    transition: opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transition: opacity 0.15s ease !important;
     border-radius: inherit !important;
     transform: translate3d(0, 0, 0) !important;
     -webkit-transform: translate3d(0, 0, 0) !important;
-    will-change: opacity !important;
     backface-visibility: hidden !important;
     -webkit-backface-visibility: hidden !important;
 }
 
-/* HOVER STATE: Show gray overlay over entire poster */
+/* HOVER STATE: Subtle darkening */
 .meta-item-container-Tj0Ib .poster-container-qkw48:hover::before {
     opacity: 1 !important;
 }
@@ -1845,16 +1922,15 @@ body.performance-mode .meta-item-container-Tj0Ib .poster-container-qkw48:hover::
     -webkit-backdrop-filter: none !important;
 }
 
-/* HOVER STATE: Frosted white glass play button ring - GPU accelerated */
+/* HOVER STATE: Simple play button - no blur, no scale */
 .meta-item-container-Tj0Ib .poster-container-qkw48:hover .play-icon-layer-vpQIo .play-icon-outer-r3iKR {
-    background: rgba(255, 255, 255, 0.45) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
-    backdrop-filter: blur(4px) !important;
-    -webkit-backdrop-filter: blur(4px) !important;
-    border: 1.5px solid rgba(255, 255, 255, 0.5) !important;
-    /* Only scale, no translate since parent is already centered */
-    transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
-    -webkit-transform: translate3d(0, 0, 0) scale3d(1.02, 1.02, 1) !important;
+    background: rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    transform: translate3d(0, 0, 0) !important;
+    -webkit-transform: translate3d(0, 0, 0) !important;
 }
 
 /* Completely disable play button blur and effects during scroll */
@@ -1870,10 +1946,10 @@ body.performance-mode .meta-item-container-Tj0Ib .poster-container-qkw48:hover .
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }
 
-/* HOVER STATE: Bright white play icon */
+/* HOVER STATE: Clean white play icon */
 .meta-item-container-Tj0Ib .poster-container-qkw48:hover .play-icon-layer-vpQIo .play-icon-QmEEA {
     color: rgba(255, 255, 255, 1) !important;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)) !important;
+    filter: none !important;
 }
 
 /* ========================= WATCHED FLAG GLASS STYLING ========================= */
@@ -2043,6 +2119,29 @@ body.performance-mode .meta-item-container-Tj0Ib .poster-container-qkw48:hover .
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
     border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Party Watch Together button - make it circular like other action buttons */
+#party-watch-button {
+    border-radius: 50% !important;
+    aspect-ratio: 1 !important;
+    color: #ffffff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Ensure the icon is white and centered */
+#party-watch-button svg {
+    fill: #ffffff !important;
+    color: #ffffff !important;
+    display: block !important;
+    margin: auto !important;
+}
+
+#party-watch-button svg path {
+    fill: #ffffff !important;
+    color: #ffffff !important;
 }
 
 .chip-L3r9A.active-jnhyP {

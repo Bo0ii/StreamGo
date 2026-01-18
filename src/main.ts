@@ -1,19 +1,18 @@
 import { join, basename } from "path";
-import { mkdirSync, existsSync, writeFileSync, unlinkSync } from "fs";
+import { mkdirSync, existsSync, writeFileSync, unlinkSync, readdirSync } from "fs";
 import { execSync } from "child_process";
 import helpers from './utils/Helpers';
 import Updater from "./core/Updater";
 import Properties from "./core/Properties";
 import logger from "./utils/logger";
 import { IPC_CHANNELS, URLS } from "./constants";
-import { Notification } from "electron";
+import { Notification, nativeImage } from "electron";
 
 // Fix GTK 2/3 and GTK 4 conflict on Linux
 import { app } from 'electron';
 if (process.platform === 'linux') app.commandLine.appendSwitch('gtk-version', '3');
 
 import { BrowserWindow, shell, ipcMain, dialog } from "electron";
-import StreamingServer from "./utils/StreamingServer";
 import Helpers from "./utils/Helpers";
 import StremioService from "./utils/StremioService";
 import ExternalPlayer from "./utils/ExternalPlayer";
@@ -22,10 +21,21 @@ import StreamingConfig from "./core/StreamingConfig";
 
 app.setName("streamgo");
 
+// Register stremio:// protocol handler - MUST be called before app.ready
+// This allows the app to handle stremio:// links from browsers
+// On Windows, we need to set it even if already set to ensure proper registration
+if (process.platform === 'win32') {
+    // On Windows, always set to ensure proper registration
+    app.setAsDefaultProtocolClient('stremio');
+} else {
+    // On macOS/Linux, only set if not already set
+    if (!app.isDefaultProtocolClient('stremio')) {
+        app.setAsDefaultProtocolClient('stremio');
+    }
+}
+
 let mainWindow: BrowserWindow | null;
 const transparencyFlagPath = join(app.getPath("userData"), "transparency");
-const useStremioServiceFlagPath = join(app.getPath("userData"), "use_stremio_service_for_streaming");
-const useServerJSFlagPath = join(app.getPath("userData"), "use_server_js_for_streaming");
 const transparencyEnabled = existsSync(transparencyFlagPath);
 
 // ============================================
@@ -33,25 +43,58 @@ const transparencyEnabled = existsSync(transparencyFlagPath);
 // Optimized for smooth 144Hz+ scrolling/transitions
 // ============================================
 
-// Detect if running on modern Mac (Apple Silicon) for conditional GPU optimizations
-function isModernMac(): boolean {
-    if (process.platform !== "darwin") return false;
+// Detect high refresh rate display
+function getDisplayRefreshRate(): number {
     try {
-        // Check if Apple Silicon (M1/M2/M3/M4)
-        const cpuBrand = execSync("sysctl -n machdep.cpu.brand_string", { encoding: "utf8" });
-        return cpuBrand.includes("Apple");
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        return primaryDisplay.displayFrequency || 60;
     } catch {
-        return false; // Unknown, use conservative settings
+        return 60;
     }
 }
 
-const useAggressiveGpuFlags = process.platform === "win32" || isModernMac() || process.platform === "linux";
+// Detect if running on a laptop (has battery) vs desktop
+function isLaptop(): boolean {
+    try {
+        if (process.platform === 'darwin') {
+            // macOS: Check if battery exists using pmset
+            const result = execSync('pmset -g batt 2>/dev/null', { encoding: 'utf8', timeout: 2000 });
+            // If "InternalBattery" is found, it's a laptop (MacBook)
+            // Mac Mini, Mac Pro, iMac don't have internal batteries
+            return result.includes('InternalBattery');
+        } else if (process.platform === 'win32') {
+            // Windows: Check for battery using WMIC
+            const result = execSync('WMIC Path Win32_Battery Get BatteryStatus 2>nul', { encoding: 'utf8', timeout: 2000 });
+            // If we get battery status data (not just headers), it's a laptop
+            const lines = result.trim().split('\n').filter(line => line.trim());
+            return lines.length > 1; // More than just header = has battery
+        } else if (process.platform === 'linux') {
+            // Linux: Check /sys/class/power_supply for battery
+            const powerSupplyPath = '/sys/class/power_supply';
+            if (existsSync(powerSupplyPath)) {
+                const supplies = readdirSync(powerSupplyPath);
+                return supplies.some(supply =>
+                    supply.toLowerCase().includes('bat') ||
+                    supply.toLowerCase().includes('battery')
+                );
+            }
+        }
+    } catch (err) {
+        logger.warn(`[DeviceDetection] Could not determine device type: ${err}`);
+    }
+    // Default to desktop (use aggressive flags) if detection fails
+    return false;
+}
+
+const isLaptopDevice = isLaptop();
+logger.info(`[DeviceDetection] Device type: ${isLaptopDevice ? 'LAPTOP' : 'DESKTOP'}`);
+
 
 // Platform-specific rendering backend
 if (process.platform === "darwin") {
-    logger.info(`Running on macOS (${isModernMac() ? "Apple Silicon" : "Intel"}), using Metal for rendering`);
+    logger.info("Running on macOS, using Metal for rendering");
     app.commandLine.appendSwitch('use-angle', 'metal');
-    // macOS-specific scroll and compositing optimizations
     app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar,MetalCompositor');
     app.commandLine.appendSwitch('enable-smooth-scrolling');
 } else if (process.platform === "win32") {
@@ -62,50 +105,73 @@ if (process.platform === "darwin") {
     app.commandLine.appendSwitch('use-angle', 'gl');
 }
 
-// Force GPU acceleration - safe for all GPUs
+// ============================================
+// PERFORMANCE FLAGS - Adaptive based on device type
+// Desktop: Aggressive flags for max performance
+// Laptop: Conservative flags for battery/thermal efficiency
+// ============================================
+
+// Common GPU acceleration (both laptop and desktop)
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('disable-software-rasterizer');
-
-// High-refresh optimizations - Windows, modern Macs (Apple Silicon), and Linux
-if (useAggressiveGpuFlags) {
-    app.commandLine.appendSwitch('force-high-performance-gpu');
-    // Unlock frame rate for high refresh rate displays (144Hz+)
-    app.commandLine.appendSwitch('disable-frame-rate-limit');
-    // V-sync: Keep enabled on macOS for smooth ProMotion display frame delivery
-    // Disable on Windows/Linux for lower input latency
-    if (process.platform !== 'darwin') {
-        app.commandLine.appendSwitch('disable-gpu-vsync');
-    }
-}
-
-// Safe rendering pipeline optimizations (all platforms)
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('enable-gpu-compositing');
 app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
 app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
+app.commandLine.appendSwitch('enable-oop-rasterization');
+app.commandLine.appendSwitch('canvas-oop-rasterization');
+app.commandLine.appendSwitch('high-dpi-support', '1');
 
-// Experimental flags - only on Windows or modern Macs
-if (useAggressiveGpuFlags) {
-    app.commandLine.appendSwitch('enable-oop-rasterization');
-    app.commandLine.appendSwitch('canvas-oop-rasterization');
+if (isLaptopDevice) {
+    // ============================================
+    // LAPTOP MODE: Conservative for battery & thermals
+    // ============================================
+    logger.info("[Performance] Using LAPTOP mode - VSync enabled, frame rate limited");
+
+    // Let system manage GPU (don't force discrete)
+    // VSync ON - limits to display refresh rate (60/120Hz)
+    // Frame rate limiter ON - no wasted frames
+
+    // Moderate rasterization
+    app.commandLine.appendSwitch('num-raster-threads', '2');
+
+    // Keep renderer active but allow some throttling
+    app.commandLine.appendSwitch('disable-renderer-backgrounding');
+
+} else {
+    // ============================================
+    // DESKTOP MODE: Aggressive for max performance
+    // ============================================
+    logger.info("[Performance] Using DESKTOP mode - VSync disabled, unlimited frame rate");
+
+    // Force discrete GPU for max performance
+    app.commandLine.appendSwitch('force-high-performance-gpu');
+
+    // Unlock frame rate for smooth animations
+    app.commandLine.appendSwitch('disable-frame-rate-limit');
+    app.commandLine.appendSwitch('disable-gpu-vsync');
+
+    // Aggressive rasterization
     app.commandLine.appendSwitch('in-process-gpu');
+    app.commandLine.appendSwitch('num-raster-threads', '4');
+
+    // Hardware overlays and raw draw
     app.commandLine.appendSwitch('enable-hardware-overlays', 'single-fullscreen,single-on-top,underlay');
     app.commandLine.appendSwitch('enable-raw-draw');
+
+    // Quality settings
+    app.commandLine.appendSwitch('disable-composited-antialiasing');
+    app.commandLine.appendSwitch('gpu-rasterization-msaa-sample-count', '0');
+
+    // High precision timing
+    app.commandLine.appendSwitch('enable-highres-timer');
+
+    // Keep renderer fully active
+    app.commandLine.appendSwitch('disable-renderer-backgrounding');
+    app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+    app.commandLine.appendSwitch('disable-hang-monitor');
 }
-
-// Always safe optimizations
-app.commandLine.appendSwitch('disable-composited-antialiasing');
-app.commandLine.appendSwitch('gpu-rasterization-msaa-sample-count', '0');
-app.commandLine.appendSwitch('num-raster-threads', '4');
-
-// Prevent throttling for consistent frame pacing
-app.commandLine.appendSwitch('disable-renderer-backgrounding');
-app.commandLine.appendSwitch('disable-background-timer-throttling');
-app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
-app.commandLine.appendSwitch('disable-hang-monitor');
-app.commandLine.appendSwitch('enable-highres-timer');
-app.commandLine.appendSwitch('high-dpi-support', '1');
 
 // HEVC/H.265 hardware decoding support
 if (process.platform === "win32") {
@@ -124,12 +190,27 @@ app.commandLine.appendSwitch('enable-accelerated-video-encode');
 // Media Buffering & Network Optimizations
 // Improves streaming performance for HD/4K content
 // ============================================
-app.commandLine.appendSwitch('media-cache-size', '536870912'); // 512MB media cache
+app.commandLine.appendSwitch('media-cache-size', '268435456'); // 256MB - good balance for all platforms
 app.commandLine.appendSwitch('enable-tcp-fast-open');
 app.commandLine.appendSwitch('enable-quic');
 app.commandLine.appendSwitch('enable-async-dns');
 
 async function createWindow() {
+    // Get the icon path - use different paths for packaged vs development
+    // Windows needs .ico format, other platforms use .png
+    const iconFile = process.platform === "win32" ? "icon.ico" : "icon.png";
+    const iconPath = app.isPackaged
+        ? join(process.resourcesPath, "images", iconFile)
+        : join(__dirname, "..", "images", iconFile);
+
+    // Create native image from the icon path
+    const appIcon = nativeImage.createFromPath(iconPath);
+
+    // Set dock icon on macOS
+    if (process.platform === "darwin" && app.dock) {
+        app.dock.setIcon(appIcon);
+    }
+
     mainWindow = new BrowserWindow({
         webPreferences: {
             preload: join(__dirname, "preload.js"),
@@ -142,6 +223,8 @@ async function createWindow() {
             webSecurity: false,
             nodeIntegration: true,
             contextIsolation: false,
+            // Enable webview tag for embedded content
+            webviewTag: true,
             // Additional security hardening
             allowRunningInsecureContent: false,
             experimentalFeatures: false,
@@ -158,7 +241,7 @@ async function createWindow() {
         useContentSize: false,
         paintWhenInitiallyHidden: true,
         show: false,
-        icon: "./images/mainnew.png",
+        icon: appIcon,
         frame: !transparencyEnabled,
         transparent: transparencyEnabled,
         hasShadow: !transparencyEnabled,
@@ -167,6 +250,46 @@ async function createWindow() {
     });
 
     mainWindow.setMenu(null);
+
+    // Log GPU info and display refresh rate on startup
+    mainWindow.webContents.on('did-finish-load', () => {
+        // Log display info from main process
+        const refreshRate = getDisplayRefreshRate();
+        logger.info(`Display refresh rate: ${refreshRate}Hz`);
+
+        mainWindow?.webContents.executeJavaScript(`
+            (async () => {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (gl) {
+                    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                    if (debugInfo) {
+                        console.log('[GPU] Vendor:', gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL));
+                        console.log('[GPU] Renderer:', gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL));
+                    }
+                }
+                console.log('[Display] Refresh rate: ${refreshRate}Hz');
+
+                // Wait 3 seconds for page to fully load before measuring FPS
+                setTimeout(() => {
+                    console.log('[Performance] Measuring render FPS (vsync-paced)...');
+                    let frames = 0;
+                    const start = performance.now();
+                    const countFrames = () => {
+                        frames++;
+                        if (performance.now() - start < 1000) {
+                            requestAnimationFrame(countFrames);
+                        } else {
+                            console.log('[Performance] Measured FPS:', frames, '(should match display refresh rate)');
+                            console.log('[Performance] If FPS is lower than display refresh, check for layout thrashing');
+                        }
+                    };
+                    requestAnimationFrame(countFrames);
+                }, 3000);
+            })();
+        `).catch(() => {});
+    });
+
     mainWindow.loadURL(URLS.STREMIO_WEB);
 
     // Show window when ready to prevent white flash and ensure smooth first paint
@@ -425,48 +548,112 @@ async function createWindow() {
 }
 
 // Use Stremio Service for streaming
-async function useStremioService() {
-    if(await StremioService.isServiceInstalled()) {
-        logger.info("Found installation of Stremio Service.");
-        try {
-            await StremioService.start();
-        } catch (err) {
-            logger.error(`Failed to start Stremio Service: ${(err as Error).message}`);
-        }
-    } else {
-        const result = await Helpers.showAlert(
-            "warning",
-            "Stremio Service not found",
-            `Stremio Service is required for streaming features. Do you want to download it now? ${process.platform == "linux" ? "This will install the service via Flatpak (if available)." : ""}`,
-            ["YES", "NO"]
-        );
-        if (result === 0) {
-            logger.info("User chose to download Stremio Service. Starting download...");
-            const success = await StremioService.downloadAndInstallService();
-            if (success) {
-                await Helpers.showAlert(
-                    "info",
-                    "Installation Successful",
-                    "Stremio Service has been installed and started successfully. Streaming features are now available.",
-                    ["OK"]
-                );
+// Handle stremio:// protocol URLs
+function handleProtocolUrl(url: string): void {
+    logger.info(`[Protocol] Received stremio:// URL: ${url}`);
+    
+    try {
+        let manifestUrl: string | null = null;
+        
+        // Handle different stremio:// URL formats
+        // Format 1: stremio://addon/install/<manifest-url>
+        // Format 2: stremio://<hostname>/manifest.json (direct manifest URL)
+        // Format 3: stremio://<encoded-manifest-url>
+        
+        if (url.includes('/addon/install/')) {
+            // Format 1: stremio://addon/install/<manifest-url>
+            const urlObj = new URL(url);
+            const manifestPath = urlObj.pathname.replace('/addon/install/', '');
+            manifestUrl = decodeURIComponent(manifestPath);
+        } else {
+            // Format 2 or 3: Try to extract manifest URL from the protocol URL
+            // Remove the stremio:// prefix
+            const withoutProtocol = url.replace(/^stremio:\/\//, '');
+            
+            // Check if it looks like a full URL (starts with http:// or https://)
+            if (withoutProtocol.startsWith('http://') || withoutProtocol.startsWith('https://')) {
+                manifestUrl = withoutProtocol;
             } else {
-                const errorResult = await Helpers.showAlert(
-                    "error",
-                    "Installation Failed",
-                    "Failed to install Stremio Service automatically. You can manually download and install it from the GitHub releases page.\n\nClick 'Install' to open the download page in your browser, or 'OK' to close this dialog.",
-                    ["OK", "Install"]
-                );
-                if (errorResult === 1) {
-                    // User clicked "Install" - open Stremio Service releases page
-                    logger.info("User chose to open Stremio Service releases page in browser.");
-                    shell.openExternal("https://github.com/Stremio/stremio-service/releases");
+                // It's likely a hostname-based format like: stremio://hostname/manifest.json
+                // Reconstruct as https:// URL
+                // Handle cases like: stremio://2ecbbd610840-stremio-ar.baby-beamup.club/manifest.json
+                if (withoutProtocol.includes('/')) {
+                    const [hostname, ...pathParts] = withoutProtocol.split('/');
+                    const path = pathParts.join('/');
+                    manifestUrl = `https://${hostname}/${path}`;
+                } else {
+                    // Just hostname, assume manifest.json
+                    manifestUrl = `https://${withoutProtocol}/manifest.json`;
                 }
             }
-        } else {
-            logger.info("User declined to download Stremio Service.");
         }
+        
+        if (!manifestUrl) {
+            logger.warn(`[Protocol] Could not extract manifest URL from: ${url}`);
+            return;
+        }
+        
+        // Ensure manifestUrl is a valid URL
+        try {
+            new URL(manifestUrl);
+        } catch {
+            // If not a valid URL, try to fix it
+            if (!manifestUrl.startsWith('http://') && !manifestUrl.startsWith('https://')) {
+                manifestUrl = `https://${manifestUrl}`;
+            }
+        }
+        
+        logger.info(`[Protocol] Installing addon from manifest: ${manifestUrl}`);
+        
+        // Navigate to Stremio's addon installation page
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            const baseUrl = URLS.STREMIO_WEB;
+            // Navigate directly to addon installation URL
+            // Stremio's web interface handles addon installation via URL parameters
+            const addonUrl = `#/addons?addon=${encodeURIComponent(manifestUrl)}`;
+            mainWindow.loadURL(`${baseUrl}${addonUrl}`);
+            
+            mainWindow.focus();
+            if (mainWindow.isMinimized()) {
+                mainWindow.restore();
+            }
+        } else {
+            // Window not ready yet, store for later
+            logger.warn("[Protocol] Main window not ready, addon URL will be handled when window loads");
+            // Queue the URL for when window is ready
+            setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    handleProtocolUrl(url);
+                }
+            }, 1000);
+        }
+    } catch (error) {
+        logger.error(`[Protocol] Error parsing stremio:// URL: ${(error as Error).message}`);
+        logger.error(`[Protocol] Full error stack: ${(error as Error).stack}`);
     }
+}
+
+// Handle single instance lock for Windows/Linux
+// This prevents multiple instances and handles protocol URLs when app is already running
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+    // Another instance is already running, quit this one
+    app.quit();
+} else {
+    // Handle second instance (when app is already running and protocol link is clicked)
+    app.on('second-instance', (_event, commandLine) => {
+        // Someone tried to run a second instance, focus our window instead
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.focus();
+        }
+        // Handle protocol URL from command line
+        const protocolUrl = commandLine.find(arg => arg.startsWith('stremio://'));
+        if (protocolUrl) {
+            handleProtocolUrl(protocolUrl);
+        }
+    });
 }
 
 app.on("ready", async () => {
@@ -478,6 +665,32 @@ app.on("ready", async () => {
     logger.info("User data path: " + app.getPath("userData"));
     logger.info("Themes path: " + Properties.themesPath);
     logger.info("Plugins path: " + Properties.pluginsPath);
+
+    // Handle protocol URLs when app is opened via stremio:// link
+    if (process.platform === 'darwin') {
+        // macOS: handle open-url event
+        app.on('open-url', (event, url) => {
+            event.preventDefault();
+            handleProtocolUrl(url);
+        });
+    } else {
+        // Windows/Linux: handle protocol URL from command line args
+        // On Windows, protocol URLs are passed as command line arguments
+        // Check all arguments for stremio:// URLs
+        const protocolUrls = process.argv.filter(arg => arg.startsWith('stremio://'));
+        if (protocolUrls.length > 0) {
+            // Handle the first protocol URL found
+            handleProtocolUrl(protocolUrls[0]);
+        }
+        
+        // Also check for URLs that might have been passed differently
+        // Sometimes Windows passes it as a single argument with quotes
+        const allArgs = process.argv.join(' ');
+        const urlMatch = allArgs.match(/stremio:\/\/[^\s"']+/);
+        if (urlMatch && protocolUrls.length === 0) {
+            handleProtocolUrl(urlMatch[0]);
+        }
+    }
 
     try {
         const basePath = Properties.enhancedPath;
@@ -497,55 +710,16 @@ app.on("ready", async () => {
     
     if(!process.argv.includes("--no-stremio-server")) {
         if(!await StremioService.isProcessRunning()) {
-            // Priority 1: Use bundled service (always available, auto-start)
-            if(StremioService.hasBundledService()) {
-                logger.info("Bundled Stremio Service found. Auto-starting...");
-                try {
-                    await StremioService.start();
-                    logger.info("Bundled Stremio Service started successfully.");
-                } catch (err) {
-                    logger.error(`Failed to start bundled Stremio Service: ${(err as Error).message}`);
-                }
+            logger.info("Starting bundled Stremio Service...");
+            try {
+                await StremioService.start();
+                logger.info("Stremio Service started successfully.");
+            } catch (err) {
+                logger.error(`Failed to start Stremio Service: ${(err as Error).message}`);
             }
-            // Priority 2: Fall back to external installation or download prompt
-            else {
-                let platform = process.platform;
-
-                if(platform === "win32") {
-                    // Check if external Stremio Service is installed
-                    if(await StremioService.isServiceInstalled()) {
-                        logger.info("External Stremio Service is installed. Auto-starting...");
-                        try {
-                            await useStremioService();
-                            if(!existsSync(useStremioServiceFlagPath)) {
-                                writeFileSync(useStremioServiceFlagPath, "1");
-                            }
-                        } catch (err) {
-                            logger.error(`Failed to auto-start Stremio Service: ${(err as Error).message}`);
-                        }
-                    } else if(existsSync(useStremioServiceFlagPath)) {
-                        logger.info("Stremio Service was previously selected but is not installed. Showing installation prompt...");
-                        await useStremioService();
-                    } else if(existsSync(useServerJSFlagPath)) {
-                        await useServerJS();
-                    } else {
-                        await chooseStreamingServer();
-                    }
-                } else if (platform === "darwin" || platform === "linux") {
-                    if(await StremioService.isServiceInstalled()) {
-                        logger.info("External Stremio Service is installed. Auto-starting...");
-                        try {
-                            await StremioService.start();
-                        } catch (err) {
-                            logger.error(`Failed to auto-start Stremio Service: ${(err as Error).message}`);
-                            await useStremioService();
-                        }
-                    } else {
-                        await useStremioService();
-                    }
-                }
-            }
-        } else logger.info("Stremio Service is already running.");
+        } else {
+            logger.info("Stremio Service is already running.");
+        }
     } else logger.info("Launching without Stremio streaming server.");
     
     createWindow();
@@ -556,13 +730,14 @@ app.on("ready", async () => {
 
     // Cleanup handler for when the app is about to quit
     app.on("before-quit", () => {
-        logger.info("App is quitting, checking if service needs termination...");
+        logger.info("App is quitting, terminating all services...");
 
         // Destroy system tray
         SystemTray.destroy();
 
+        // Always terminate Stremio Service when app quits (not just if we started it)
         if (!process.argv.includes("--no-stremio-service")) {
-            StremioService.terminateIfStartedByApp();
+            StremioService.forceTerminate();
         }
     });
 
@@ -570,115 +745,21 @@ app.on("ready", async () => {
     app.on("will-quit", () => {
         logger.info("App will quit, ensuring service cleanup...");
         if (!process.argv.includes("--no-stremio-service")) {
-            StremioService.terminateIfStartedByApp();
+            StremioService.forceTerminate();
         }
     });
 });
 
-// Handle the choice of streaming server on Windows. This is only used for Windows. macOS and Linux will always use server.js to avoid problems.
-async function chooseStreamingServer() {
-    const result = await Helpers.showAlert(
-        "info",
-        "Stremio Streaming Server",
-        "StreamGo requires a Stremio Streaming Server for playback to function properly. You can either use the Stremio Service or set up a local streaming server manually.\nThis is a one-time setup. The option you choose will be saved for future app launches.\n\n" +
-        "Would you like to use the Stremio Service for streaming?\n\n" +
-        "Click 'No' to attempt using server.js directly",
-        ["Yes, use Stremio Service (recommended on Windows)", "No, use server.js directly (manual setup required)"]
-    );
-
-    if(result === 0) {
-        logger.info("User chose to use Stremio Service for streaming. User's choice will be saved for future launches.");
-        await useStremioService();
-        writeFileSync(useStremioServiceFlagPath, "1");
-    } else if(result === 1) {
-        logger.info("User chose to use server.js for streaming. User's choice will be saved for future launches.");
-        useServerJS();
-        writeFileSync(useServerJSFlagPath, "1");
-    } else {
-        logger.info("User closed the streaming server choice dialog. Closing app...");
-        app.quit();
-    }
-}
-
-async function useServerJS() {
-    // First, try to ensure streaming server files are available
-    logger.info("Checking for streaming server files...");
-    const filesStatus = await StreamingServer.ensureStreamingServerFiles();
-
-    if(filesStatus === "ready") {
-        logger.info("Launching local streaming server.");
-        StreamingServer.start();
-    } else if(filesStatus === "missing_server_js") {
-        // server.js is missing - show instructions to the user in a loop
-        logger.info("server.js not found. Showing download instructions to user...");
-        const serverDir = StreamingServer.getStreamingServerDir();
-        const downloadUrl = StreamingServer.getServerJsUrl();
-
-        let serverJsFound = false;
-        while (!serverJsFound) {
-            const result = await Helpers.showAlert(
-                "info",
-                "Streaming Server Setup Required",
-                `To enable video playback, you need to download the Stremio streaming server file (server.js).\n\n` +
-                `1. Download server.js from:\n${downloadUrl}\n\n` +
-                `2. Right click the page and select "Save As" and save it as "server.js".\n\n` +
-                `3. Place it in:\n${serverDir}\n\n` +
-                `Click "Open Folder" to open the destination folder, or "Download" to open the download link in your browser. Click "Close" when you have placed the file in the correct location and FFmpeg will be downloaded automatically if needed.`,
-                ["Open Folder", "Download", "Close"]
-            );
-
-            if (result === 0) {
-                // Open the folder
-                StreamingServer.openStreamingServerDir();
-            } else if (result === 1) {
-                // Open the download URL in browser
-                shell.openExternal(downloadUrl);
-            } else {
-                // User clicked Close - check if file exists now
-                if (StreamingServer.serverJsExists()) {
-                    serverJsFound = true;
-                    logger.info("server.js found after user action. Proceeding with streaming server setup...");
-                    // Re-run the setup to also check/download ffmpeg
-                    const retryStatus = await StreamingServer.ensureStreamingServerFiles();
-                    if (retryStatus === "ready") {
-                        logger.info("Launching local streaming server.");
-                        await Helpers.showAlert("info", "Streaming Server Setup Complete", "The streaming server has been set up successfully and will now start. You may need to reload the streaming server from the settings.", ["OK"]);
-                        StreamingServer.start();
-                    } else {
-                        // FFmpeg issue - fall back to Stremio Service
-                        logger.info("FFmpeg not available after server.js setup. Falling back to Stremio Service...");
-                        await Helpers.showAlert("error", "Failed to download FFmpeg", "Failed to automatically download FFmpeg. FFmpeg is required for the streaming server to function properly. The app will now use Stremio Service for streaming instead for this instance.", ["OK"]);
-                        await useStremioService();
-                    }
-                } else {
-                    // File still not there - warn and show dialog again
-                    await Helpers.showAlert(
-                        "warning",
-                        "File Not Found",
-                        `server.js was not found in:\n${serverDir}\n\nPlease download the file and place it in the correct location.`,
-                        ["OK"]
-                    );
-                }
-            }
-        }
-    } else {
-        // FFmpeg download failed - fall back to Stremio Service
-        logger.info("FFmpeg not available. Falling back to Stremio Service...");
-        await useStremioService();
-    }
-}
-
 app.on("window-all-closed", () => {
     logger.info("Closing app...");
 
-    // Terminate Stremio Service if we started it
+    // Always terminate Stremio Service when all windows are closed
     if (!process.argv.includes("--no-stremio-service")) {
-        StremioService.terminateIfStartedByApp();
+        StremioService.forceTerminate();
     }
 
-    if (process.platform !== "darwin") {
-        app.quit();
-    }
+    // Quit on all platforms (including macOS) when windows are closed
+    app.quit();
 });
 
 app.on('browser-window-created', (_, window) => {
