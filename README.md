@@ -60,7 +60,7 @@ Real-time anime upscaling powered by WebGL:
 - **HQ Modes** - High quality line restore & upscale
 - **Bo0ii Exclusive Mode** - Double-pass Mode A+ for maximum quality (GPU intensive)
 
-<img src="images/OFF.png" alt="Anime4K Comparison" width="400">
+<img src="images/OFF.png" alt="Anime4K Comparison">
 
 ### 🎉 Watch Party
 Watch together with friends in real-time:
