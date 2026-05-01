@@ -42,23 +42,12 @@ Enhanced Stremio desktop client with **plugins**, **themes**, and **exclusive fe
 
 ## ⚡ Exclusive Features
 
-### 🎬 Video Filters & Enhancement
-Real-time video processing — sharpness, contrast, saturation, temperature, highlights/shadows, denoise, edge enhance, fake HDR, anti-aliasing. Press `F` to toggle.
-
 ### 🎌 Anime4K Upscaling
 Real-time WebGL anime upscaling. Lite, Fast, HQ, and an exclusive Bo0ii double-pass mode.
 
-### 🎉 Watch Party
-PIN-code rooms with synced play/pause/seek/speed, in-party chat, host transfer.
-
-### 🔍 Stream Filtering
-Filter by quality (4K/1080p/…), language, and color range (SDR/HDR/HDR10/Dolby Vision).
-
-### 🎌 Anime Features
-AniSkip auto-detects intros/outros with timeline markers. Trending Anime row pulls top airing from MyAnimeList.
-
-### 🎮 Player Enhancements
-Screenshot capture, Picture-in-Picture, playback speed (`[` / `]`), subtitle font + delay (`G` / `H`), skip intro (`Shift+Arrow`), position resume.
+<p align="center">
+	<img src="images/OFF.png" alt="Anime4K Comparison" width="800">
+</p>
 
 ### 💡 Ambient Light
 Dynamic edge glow that samples the frame and bleeds matching color into the window borders.
@@ -67,8 +56,23 @@ Dynamic edge glow that samples the frame and bleeds matching color into the wind
 	<img src="images/ambientlight.png" alt="Ambient Light" width="800">
 </p>
 
+### 🎉 Watch Party
+PIN-code rooms with synced play, pause, seek, speed, in-party chat, host transfer.
+
+### 🎬 Video Filters & Enhancement
+Real-time video processing. Sharpness, contrast, saturation, temperature, highlights and shadows, denoise, edge enhance, fake HDR, anti-aliasing. Press `F` to toggle.
+
+### 🔍 Stream Filtering
+Filter by quality (4K, 1080p, 720p), language, and color range (SDR, HDR, HDR10, Dolby Vision).
+
+### 🎌 Anime Features
+AniSkip auto-detects intros and outros with timeline markers. Trending Anime row pulls top airing from MyAnimeList.
+
+### 🎮 Player Enhancements
+Screenshot capture, Picture-in-Picture, playback speed (`[` / `]`), subtitle font and delay (`G` / `H`), skip intro (`Shift+Arrow`), position resume.
+
 ### 🎯 Performance & Speed
-GPU-accelerated (Metal/D3D11/OpenGL), 144Hz+ smooth scrolling, hardware HEVC/H.265 decode, three BitTorrent streaming profiles.
+GPU-accelerated (Metal, D3D11, OpenGL), 144Hz+ smooth scrolling, hardware HEVC and H.265 decode, three BitTorrent streaming profiles.
 
 ### 🔧 Core Systems
 Auto app updates and auto Stremio Service setup.
@@ -77,7 +81,7 @@ Auto app updates and auto Stremio Service setup.
 Custom themes and plugins, accent colors, Discord Rich Presence (toggleable).
 
 ### 📦 Built-in Plugins
-Playback Preview, Card Hover Info (IMDb), Enhanced External Player (VLC/MPC-HC/mpv), Horizontal Navigation, and more.
+Playback Preview, Card Hover Info (IMDb), Enhanced External Player (VLC, MPC-HC, mpv), Horizontal Navigation, and more.
 
 ---
 
