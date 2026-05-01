@@ -36,83 +36,48 @@
 
 ## 🚀 What is StreamGo?
 
-Enhanced Stremio desktop client with **plugins**, **themes**, and **exclusive features** that make it feel native and smooth.
-
-Runs the Stremio streaming server automatically and loads [web.stremio.com](https://web.stremio.com) in an optimized Electron environment.
+Enhanced Stremio desktop client with **plugins**, **themes**, and **exclusive features**. Runs the Stremio streaming server automatically and loads [web.stremio.com](https://web.stremio.com) in an optimized Electron environment.
 
 ---
 
 ## ⚡ Exclusive Features
 
 ### 🎬 Video Filters & Enhancement
-Advanced real-time video processing with press `F` to toggle:
-- **Sharpness, Contrast, Saturation, Brightness** - Fine-tune your viewing experience
-- **Temperature & Color Correction** - Warm/cool adjustments
-- **Highlights & Shadows** - Precise tonal control
-- **Denoise & Edge Enhancement** - Clean up noisy streams
-- **Fake HDR** - S-curve tone mapping that simulates HDR on any display
-- **Anti-Aliasing** - FXAA-style edge smoothing
+Real-time video processing — sharpness, contrast, saturation, temperature, highlights/shadows, denoise, edge enhance, fake HDR, anti-aliasing. Press `F` to toggle.
 
 ### 🎌 Anime4K Upscaling
-Real-time anime upscaling powered by WebGL:
-- **Lite Modes** - For laptops and low-end devices
-- **Fast Modes** - Standard quality upscaling
-- **HQ Modes** - High quality line restore & upscale
-- **Bo0ii Exclusive Mode** - Double-pass Mode A+ for maximum quality (GPU intensive)
-
-<img src="images/OFF.png" alt="Anime4K Comparison">
+Real-time WebGL anime upscaling. Lite, Fast, HQ, and an exclusive Bo0ii double-pass mode.
 
 ### 🎉 Watch Party
-Watch together with friends in real-time:
-- **Create/Join** - Simple PIN code system
-- **Video Sync** - Play, pause, seek synchronized across all viewers
-- **Playback Speed Sync** - Everyone stays in sync
-- **In-Party Chat** - Message your friends while watching
-- **Host Controls** - Transfer host privileges to others
+PIN-code rooms with synced play/pause/seek/speed, in-party chat, host transfer.
 
 ### 🔍 Stream Filtering
-Filter streams to find exactly what you want:
-- **Quality Filter** - 4K, 1080p, 720p, 480p, etc.
-- **Language Filter** - Multi-audio detection
-- **Color Range Filter** - SDR, HDR, HDR10, Dolby Vision
+Filter by quality (4K/1080p/…), language, and color range (SDR/HDR/HDR10/Dolby Vision).
 
 ### 🎌 Anime Features
-- **AniSkip Integration** - Auto-detect and skip intros/outros with visual timeline markers
-- **Trending Anime** - Top airing anime from MyAnimeList on homepage
+AniSkip auto-detects intros/outros with timeline markers. Trending Anime row pulls top airing from MyAnimeList.
 
 ### 🎮 Player Enhancements
-- **Screenshot Capture** - Save moments with flash effect
-- **Picture-in-Picture** - Watch in a floating window
-- **Playback Speed** - `[` / `]` keys to adjust speed
-- **Subtitle Controls** - Font size adjustment, delay compensation (`G` / `H` keys)
-- **Skip Intro/Outro** - `Shift+Arrow` shortcuts with configurable duration
-- **Position Saving** - Resume from where you left off
-- **Ambilight** - Dynamic edge glow effect (optional)
+Screenshot capture, Picture-in-Picture, playback speed (`[` / `]`), subtitle font + delay (`G` / `H`), skip intro (`Shift+Arrow`), position resume.
+
+### 💡 Ambient Light
+Dynamic edge glow that samples the frame and bleeds matching color into the window borders.
+
+<p align="center">
+	<img src="images/ambientlight.png" alt="Ambient Light" width="800">
+</p>
 
 ### 🎯 Performance & Speed
-**Solves the laggy UI problem** found in other Stremio clients:
-- **GPU-Accelerated** - Metal/D3D11/OpenGL rendering
-- **144Hz+ Support** - Smooth scrolling on high refresh displays
-- **Smart Scroll Optimization** - Auto-disables heavy effects during scroll
-- **Hardware Video Decoding** - HEVC/H.265 support
-- **Streaming Profiles** - Conservative, Balanced, or Aggressive BitTorrent settings
+GPU-accelerated (Metal/D3D11/OpenGL), 144Hz+ smooth scrolling, hardware HEVC/H.265 decode, three BitTorrent streaming profiles.
 
 ### 🔧 Core Systems
-- **Auto Updates** - Checks and installs updates automatically
-- **Auto Service Setup** - Detects and installs Stremio Service if missing
+Auto app updates and auto Stremio Service setup.
 
 ### 🎨 Customization
-- **Theme System** - Apply custom CSS themes
-- **Plugin System** - Extend functionality with JavaScript plugins
-- **Accent Colors** - Customize UI colors
-- **Discord Rich Presence** - Show what you're watching (toggleable)
+Custom themes and plugins, accent colors, Discord Rich Presence (toggleable).
 
 ### 📦 Built-in Plugins
-- **Playback Preview** - Netflix-style trailer preview on hover
-- **Card Hover Info** - IMDb ratings & release dates on hover
-- **Enhanced External Player** - Auto-detect VLC/MPC-HC
-- **Horizontal Navigation** - Improved sidebar navigation
-- **And more...**
+Playback Preview, Card Hover Info (IMDb), Enhanced External Player (VLC/MPC-HC/mpv), Horizontal Navigation, and more.
 
 ---
 
