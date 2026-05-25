@@ -35,3 +35,4 @@ src/utils/PartyService.ts
 .mcp.json
 server
 nul
+.DS_Store
